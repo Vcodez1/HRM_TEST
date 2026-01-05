@@ -1,0 +1,91 @@
+import { Switch, Route } from "wouter";
+import { queryClient } from "./lib/queryClient";
+import { QueryClientProvider } from "@tanstack/react-query";
+import { Toaster } from "@/components/ui/toaster";
+import { TooltipProvider } from "@/components/ui/tooltip";
+import { useAuth } from "@/hooks/useAuth";
+import { useWebSocket } from "@/hooks/useWebSocket";
+import { ActivityWarningPopup } from "@/components/ActivityWarningPopup";
+import Landing from "@/pages/landing";
+import Login from "@/pages/login";
+import Dashboard from "@/pages/dashboard";
+import Leads from "@/pages/leads";
+import MyLeads from "@/pages/my-leads";
+import MySessions from "@/pages/my-sessions";
+import MyCompletion from "@/pages/my-completion";
+import Users from "@/pages/users";
+import MyClasses from "@/pages/classes";
+import { isSessionOrganizer } from "@/lib/adminRoleUtils";
+
+import Reports from "@/pages/reports";
+import Audit from "@/pages/audit";
+import Tally from "@/pages/tally";
+import LiveMonitor from "@/pages/live-monitor";
+import ChatHistory from "@/pages/chat-history";
+import Productivity from "@/pages/productivity";
+import TeamLeadDashboard from "@/pages/team-lead-dashboard";
+import Kathaipom from "@/pages/kathaipom";
+import NotFound from "@/pages/not-found";
+
+function Router() {
+  const { isAuthenticated, isLoading, user } = useAuth();
+
+  useWebSocket(isAuthenticated);
+
+  const userRole = (user as any)?.role;
+  const isSessOrg = isSessionOrganizer(userRole);
+  const shouldShowWarnings = isAuthenticated && (userRole === 'hr' || userRole === 'tech-support');
+
+
+  return (
+    <>
+      {shouldShowWarnings && <ActivityWarningPopup />}
+      <Switch>
+        <Route path="/login" component={Login} />
+
+        {isLoading || !isAuthenticated ? (
+          <Route path="/" component={Landing} />
+        ) : (
+          <>
+            <Route path="/" component={Dashboard} />
+            <Route path="/leads">
+              {userRole === 'session_organizer' || isSessOrg ? (
+                <MyLeads />
+              ) : (
+                <Leads />
+              )}
+            </Route>
+
+            <Route path="/my-leads" component={MyLeads} />
+            <Route path="/my-sessions" component={MySessions} />
+            <Route path="/my-completion" component={MyCompletion} />
+            <Route path="/classes" component={MyClasses} />
+            <Route path="/users" component={Users} />
+            <Route path="/reports" component={Reports} />
+            <Route path="/audit" component={Audit} />
+            <Route path="/tally" component={Tally} />
+            <Route path="/live-monitor" component={LiveMonitor} />
+            <Route path="/chat-history" component={ChatHistory} />
+            <Route path="/productivity" component={Productivity} />
+            <Route path="/my-team-lead" component={TeamLeadDashboard} />
+            <Route path="/kathaipom" component={Kathaipom} />
+          </>
+        )}
+        <Route component={NotFound} />
+      </Switch>
+    </>
+  );
+}
+
+function App() {
+  return (
+    <QueryClientProvider client={queryClient}>
+      <TooltipProvider>
+        <Toaster />
+        <Router />
+      </TooltipProvider>
+    </QueryClientProvider>
+  );
+}
+
+export default App;

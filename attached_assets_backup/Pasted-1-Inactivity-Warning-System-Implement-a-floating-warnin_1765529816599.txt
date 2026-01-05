@@ -1,0 +1,130 @@
+1. Inactivity Warning System
+
+Implement a floating warning popup in the HR dashboard when:
+
+a) Mouse Inactivity
+
+If the HR does not move the mouse for 120 seconds, show a floating popup:
+
+“⚠️ You have been inactive for 2 minutes.”
+
+Should cover the screen lightly but not block work.
+
+Should log this event as a ‘Mouse Inactivity Warning’.
+
+b) Keyboard Misuse
+
+Track keyboard behavior:
+
+If HR does not press any key for 120 seconds → show “Keyboard inactive warning”.
+
+If HR long-presses any key (press duration > 3 seconds) → show:
+
+“⚠️ Long key-press detected.”
+
+Each warning should be logged with:
+
+HR ID
+
+Timestamp
+
+Warning Type
+
+Browser info
+
+2. Tab Switch Monitoring
+
+Whenever HR switches from the working web page to another tab:
+
+Record the URL of the tab switched to.
+
+Record the time spent on that tab before returning.
+
+Save each event in the backend database:
+
+HR ID
+
+Switched-To URL
+
+Time spent outside
+
+Timestamp
+
+This should be called a “Tab Distraction Event”.
+
+3. Warning & Activity Logging
+
+Every warning or distraction event must be saved in the database with:
+
+HR Name
+
+HR ID
+
+Timestamp
+
+Warning Type (Mouse inactivity, Keyboard inactivity, Long key press, Tab switch)
+
+Extra metadata: URL, duration, device info, browser info
+
+4. Manager Dashboard (Monitoring & Analytics)
+
+In the Manager Login, add a new menu option:
+
+🔹 Productivity (Sidebar Menu)
+
+Inside this module:
+
+a) HR List View
+
+Show the list of all HRs.
+
+Each HR card/row should show:
+
+HR Name
+
+Total warnings today
+
+Total tab switches
+
+Productivity score
+
+b) Detailed View (OnClick per HR)
+
+When the Manager clicks an HR:
+
+Show the following data with statistics + visuals:
+
+Total inactivity warnings
+
+Total keyboard misuse events
+
+Total tab switch distractions
+
+URLs visited during tab switches (full list)
+
+Time spent on each external URL
+
+Daily & weekly graphical charts:
+
+Bar chart → number of warnings
+
+Line chart → productivity trend
+
+Pie chart → warning distribution
+
+5. Overall Productivity Score Calculation
+
+Create a dynamic score formula like:
+
+Score = 100 - (InactivityCount * 2 + TabSwitchCount * 3 + KeyboardWarnings * 1.5)
+
+
+Display this score visually (speedometer gauge or colored badge).
+
+Productivity color coding:
+
+Green = 80–100
+
+Yellow = 50–79
+
+Red = 0–49
