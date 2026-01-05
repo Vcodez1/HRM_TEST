@@ -1,0 +1,1392 @@
+import {
+  users,
+  leads,
+  leadHistory,
+  uploads,
+  notifications,
+  chatTranscripts,
+  productivityEvents,
+  posts,
+  postLikes,
+  postComments,
+  classes,
+  classStudents,
+  type User,
+  type UpsertUser,
+  type Lead,
+  type InsertLead,
+  type LeadHistory,
+  type InsertLeadHistory,
+  type Upload,
+  type InsertUpload,
+  type Notification,
+  type InsertNotification,
+  type ChatTranscript,
+  type InsertChatTranscript,
+  type ProductivityEvent,
+  type InsertProductivityEvent,
+  type Class,
+  type InsertClass,
+  type ClassStudent,
+  type InsertClassStudent,
+} from "@shared/schema";
+import { db } from "./db";
+import { eq, and, desc, count, sql, inArray, like, or, gte, lte, isNull } from "drizzle-orm";
+import fs from 'fs';
+import path from 'path';
+
+export { db, leads, leadHistory, users, uploads, notifications, posts, postLikes, postComments, classes, classStudents };
+export { eq, and, or, sql, inArray, desc };
+
+export interface IStorage {
+  // User operations (required for Replit Auth)
+  getUser(id: string): Promise<User | undefined>;
+  getUserByEmail(email: string): Promise<User | undefined>;
+  upsertUser(user: UpsertUser): Promise<User>;
+  getUserByUsername(username: string): Promise<User | undefined>;
+  createUser(user: Omit<UpsertUser, 'id'>): Promise<User>;
+  updateUser(id: string, updates: Partial<User>): Promise<User>;
+  deleteUser(id: string): Promise<void>;
+  getUsersByRole(role: string): Promise<User[]>;
+  getUsersByRoleAll(role: string): Promise<User[]>;
+
+  // Lead operations
+  createLead(lead: InsertLead): Promise<Lead>;
+  createLeadsBulk(leadsData: InsertLead[]): Promise<Lead[]>;
+  updateLead(id: number, updates: Partial<Lead>): Promise<Lead>;
+  deleteLead(id: number): Promise<void>;
+  deleteLeadWithHistory(leadId: number, historyData: Omit<InsertLeadHistory, 'leadId'>): Promise<void>;
+  unassignLeadWithHistory(leadId: number, historyData: Omit<InsertLeadHistory, 'leadId'>): Promise<Lead>;
+  getLead(id: number): Promise<Lead | undefined>;
+  getLeadsByOwner(ownerId: string): Promise<Lead[]>;
+  getLeadsByStatus(status: string): Promise<Lead[]>;
+  assignLead(leadId: number, toUserId: string, changedByUserId: string, reason?: string): Promise<Lead>;
+  checkEmailExists(email: string): Promise<boolean>;
+  checkEmailExistsBatch(emails: string[]): Promise<Set<string>>;
+  searchLeads(filters: {
+    status?: string;
+    ownerId?: string;
+    accountsId?: string;
+    fromDate?: string;
+    toDate?: string;
+    search?: string;
+    page?: number;
+    limit?: number;
+    unassigned?: boolean;
+    excludeCompleted?: boolean;
+    previousOwnerId?: string;
+    includeHistory?: boolean;
+    accountsStatuses?: string[]; // NEW: array of statuses for Accounts users
+    statuses?: string[]; // NEW: array of statuses for Session Organizer
+  }): Promise<{ leads: Lead[]; total: number; }>;
+
+  // Lead history operations
+  createLeadHistory(history: InsertLeadHistory): Promise<LeadHistory>;
+  getLeadHistory(leadId: number): Promise<LeadHistory[]>;
+  getAllLeadHistory(): Promise<LeadHistory[]>;
+
+  // Upload operations
+  createUpload(upload: InsertUpload): Promise<Upload>;
+  updateUpload(id: number, updates: Partial<Upload>): Promise<Upload>;
+  getUploadsByUser(userId: string): Promise<Upload[]>;
+
+  // Notification operations
+  createNotification(notification: InsertNotification): Promise<Notification>;
+  getUserNotifications(userId: string): Promise<Notification[]>;
+  markNotificationRead(id: number): Promise<void>;
+  deleteUserNotifications(userId: string): Promise<void>;
+
+  // Analytics operations
+  getLeadMetrics(category?: string): Promise<{
+    totalLeads: number;
+    activeHR: number;
+    completed: number;
+    statusDistribution: Record<string, number>;
+  }>;
+
+  // Export operations
+  getLeadsWithUserInfo(filters: {
+    status?: string;
+    ownerId?: string;
+    accountsId?: string;
+    fromDate?: string;
+    toDate?: string;
+    limit?: number;
+  }): Promise<any[]>;
+
+  // Chat transcript operations
+  createChatTranscript(transcript: InsertChatTranscript): Promise<ChatTranscript>;
+  getAllChatTranscripts(): Promise<Array<ChatTranscript & { hrUser: User | null }>>;
+  deleteChatTranscript(id: number): Promise<void>;
+
+  // Productivity event operations
+  createProductivityEvents(events: InsertProductivityEvent[]): Promise<ProductivityEvent[]>;
+  getProductivityEvents(filters: {
+    userId?: string;
+    eventType?: string;
+    fromDate?: string;
+    toDate?: string;
+  }): Promise<ProductivityEvent[]>;
+  getProductivityStats(userId?: string): Promise<{
+    mouseIdleWarnings: number;
+    keyboardIdleWarnings: number;
+    longKeyPressWarnings: number;
+    tabSwitches: number;
+    tabSwitchUrls: Array<{ url: string; fromUrl: string; count: number; totalDuration: number; lastVisit: Date }>;
+  }>;
+  getHRProductivitySummary(): Promise<Array<{
+    userId: string;
+    userName: string;
+    mouseIdleWarnings: number;
+    keyboardIdleWarnings: number;
+    longKeyPressWarnings: number;
+    tabSwitches: number;
+  }>>;
+
+  // Class Management operations
+  createClass(classData: InsertClass): Promise<Class>;
+  getClasses(instructorId?: string): Promise<Class[]>;
+  getClassesWithStudentCount(instructorId?: string): Promise<Array<Class & { studentCount: number }>>;
+  getClass(id: number): Promise<Class | undefined>;
+  updateClass(id: number, updates: Partial<Class>): Promise<Class>;
+  deleteClass(id: number): Promise<void>;
+  addStudentToClass(classId: number, leadId: number): Promise<ClassStudent>;
+  removeStudentFromClass(classId: number, leadId: number): Promise<void>;
+  getClassStudents(classId: number): Promise<Lead[]>;
+}
+
+export class DatabaseStorage implements IStorage {
+  // User operations
+  async getUser(id: string): Promise<User | undefined> {
+    const [user] = await db.select().from(users).where(eq(users.id, id));
+    return user;
+  }
+
+  async getUserByEmail(email: string): Promise<User | undefined> {
+    const [user] = await db.select().from(users).where(eq(users.email, email));
+    return user;
+  }
+
+  async upsertUser(userData: UpsertUser): Promise<User> {
+    const [user] = await db
+      .insert(users)
+      .values(userData)
+      .onConflictDoUpdate({
+        target: users.email,
+        set: {
+          firstName: userData.firstName,
+          lastName: userData.lastName,
+          profileImageUrl: userData.profileImageUrl,
+          role: userData.role,
+          updatedAt: new Date(),
+        },
+      })
+      .returning();
+    return user;
+  }
+
+  async getUserByUsername(username: string): Promise<User | undefined> {
+    const [user] = await db.select().from(users).where(eq(users.username, username));
+    return user;
+  }
+
+  async createUser(user: Omit<UpsertUser, 'id'>): Promise<User> {
+    const [newUser] = await db.insert(users).values(user).returning();
+    return newUser;
+  }
+
+  async updateUser(id: string, updates: Partial<User>): Promise<User> {
+    const [user] = await db
+      .update(users)
+      .set({ ...updates, updatedAt: new Date() })
+      .where(eq(users.id, id))
+      .returning();
+    return user;
+  }
+
+  async deleteUser(id: string): Promise<void> {
+    await db.delete(users).where(eq(users.id, id));
+  }
+
+  async getUsersByRole(role: string): Promise<User[]> {
+    return await db.select().from(users).where(and(
+      eq(users.role, role as any),
+      eq(users.isActive, true)
+    ));
+  }
+
+  async getUsersByRoleAll(role: string): Promise<User[]> {
+    return await db.select().from(users).where(
+      eq(users.role, role as any)
+    );
+  }
+
+  // Lead operations
+  async createLead(lead: InsertLead): Promise<Lead> {
+    const [newLead] = await db.insert(leads).values(lead).returning();
+    return newLead;
+  }
+
+  async createLeadsBulk(leadsData: InsertLead[]): Promise<Lead[]> {
+    if (leadsData.length === 0) return [];
+
+    // Chunk size to avoid PostgreSQL parameter limit (65535)
+    // Assuming ~20 columns per row, 50 rows = 1000 parameters, well within safety
+    const CHUNK_SIZE = 50;
+    const results: Lead[] = [];
+
+    console.log(`Starting bulk insert of ${leadsData.length} leads in chunks of ${CHUNK_SIZE} `);
+
+    for (let i = 0; i < leadsData.length; i += CHUNK_SIZE) {
+      const chunk = leadsData.slice(i, i + CHUNK_SIZE);
+      console.log(`Inserting chunk ${Math.floor(i / CHUNK_SIZE) + 1} /${Math.ceil(leadsData.length / CHUNK_SIZE)}`);
+
+      const chunkResults = await db.insert(leads).values(chunk).returning();
+      results.push(...chunkResults);
+    }
+
+    console.log(`Bulk insert completed.Total inserted: ${results.length} `);
+    return results;
+  }
+
+  async updateLead(id: number, updates: Partial<Lead>): Promise<Lead> {
+    // Sanitize empty strings to null for date/optional fields
+    const sanitizedUpdates = { ...updates };
+
+    // Convert empty strings to null for specific fields
+    if (sanitizedUpdates.walkinDate === '') sanitizedUpdates.walkinDate = null;
+    if (sanitizedUpdates.walkinTime === '') sanitizedUpdates.walkinTime = null;
+    if (sanitizedUpdates.phone === '') sanitizedUpdates.phone = null;
+    if (sanitizedUpdates.domain === '') sanitizedUpdates.domain = null;
+    if (sanitizedUpdates.notes === '') sanitizedUpdates.notes = null;
+    if (sanitizedUpdates.sessionDays === '') sanitizedUpdates.sessionDays = null;
+    if (sanitizedUpdates.timing === '') sanitizedUpdates.timing = null;
+    // Dynamic fields from bulk import
+    if (sanitizedUpdates.yearOfPassing === '') sanitizedUpdates.yearOfPassing = null;
+    if (sanitizedUpdates.collegeName === '') sanitizedUpdates.collegeName = null;
+    // HR workflow field - registrationAmount is already handled in routes.ts
+    if (sanitizedUpdates.registrationAmount === '') sanitizedUpdates.registrationAmount = null;
+
+    const [lead] = await db
+      .update(leads)
+      .set({ ...sanitizedUpdates, updatedAt: new Date() })
+      .where(eq(leads.id, id))
+      .returning();
+    return lead;
+  }
+
+  async deleteLead(id: number): Promise<void> {
+    await db.delete(leads).where(eq(leads.id, id));
+  }
+
+  async deleteLeadWithHistory(leadId: number, historyData: Omit<InsertLeadHistory, 'leadId'>): Promise<void> {
+    await db.transaction(async (tx: any) => {
+      // Create final history entry for the deletion
+      await tx.insert(leadHistory).values({
+        ...historyData,
+        leadId: leadId
+      });
+
+      // Delete all existing lead history records for this lead (to avoid foreign key constraint)
+      await tx.delete(leadHistory).where(eq(leadHistory.leadId, leadId));
+
+      // Finally delete the lead
+      await tx.delete(leads).where(eq(leads.id, leadId));
+    });
+  }
+
+  async unassignLeadWithHistory(leadId: number, historyData: Omit<InsertLeadHistory, 'leadId'>): Promise<Lead> {
+    return await db.transaction(async (tx: any) => {
+      // Create history entry first
+      await tx.insert(leadHistory).values({
+        ...historyData,
+        leadId: leadId
+      });
+
+      // Unassign the lead by setting currentOwnerId to null and reset status to 'new'
+      const [unassignedLead] = await tx
+        .update(leads)
+        .set({
+          currentOwnerId: null,
+          status: 'new',
+          updatedAt: new Date()
+        })
+        .where(eq(leads.id, leadId))
+        .returning();
+
+      return unassignedLead;
+    });
+  }
+
+  async checkEmailExists(email: string): Promise<boolean> {
+    if (!email || email.trim() === '') {
+      return false;
+    }
+
+    const trimmedEmail = email.trim();
+
+    try {
+      const result = await db
+        .select({ id: leads.id })
+        .from(leads)
+        .where(sql`LOWER(${leads.email}) = LOWER(${trimmedEmail})`)
+        .limit(1);
+
+      return result.length > 0;
+    } catch (error) {
+      console.error(`Error checking email existence for ${trimmedEmail}: `, error);
+      return false;
+    }
+  }
+
+  async checkEmailExistsBatch(emails: string[]): Promise<Set<string>> {
+    if (!emails || emails.length === 0) {
+      return new Set();
+    }
+
+    try {
+      // Filter out empty emails and normalize
+      const validEmails = emails
+        .filter(e => e && e.trim() !== '')
+        .map(e => e.trim().toLowerCase());
+
+      if (validEmails.length === 0) {
+        return new Set();
+      }
+
+      const existingEmails = new Set<string>();
+
+      // Process in chunks to avoid parameter limits (Postgres limit ~65535 parameters)
+      // Drizzle might add multiple params per value, so keep chunk size safe
+      const CHUNK_SIZE = 500;
+
+      // Remove duplicates from the input list to reduce query size
+      const uniqueEmails = Array.from(new Set(validEmails));
+
+      for (let i = 0; i < uniqueEmails.length; i += CHUNK_SIZE) {
+        const chunk = uniqueEmails.slice(i, i + CHUNK_SIZE);
+
+        // Use inArray to find matching emails in this chunk
+        const results = await db
+          .select({ email: leads.email })
+          .from(leads)
+          .where(sql`LOWER(${leads.email}) IN ${chunk} `);
+
+        results.forEach((row: { email: string | null }) => {
+          if (row.email) {
+            existingEmails.add(row.email.toLowerCase());
+          }
+        });
+      }
+
+      return existingEmails;
+    } catch (error) {
+      console.error(`Error batch checking email existence: `, error);
+      // Fallback: return empty set, bulk upload will verify individually or fail on insert
+      return new Set();
+    }
+  }
+
+  async getLead(id: number): Promise<Lead | undefined> {
+    const [lead] = await db.select().from(leads).where(eq(leads.id, id));
+    return lead;
+  }
+
+  async getLeadsByOwner(ownerId: string): Promise<Lead[]> {
+    return await db.select().from(leads).where(eq(leads.currentOwnerId, ownerId));
+  }
+
+  async getLeadsByStatus(status: string): Promise<Lead[]> {
+    return await db.select().from(leads).where(eq(leads.status, status));
+  }
+
+  async assignLead(leadId: number, toUserId: string, changedByUserId: string, reason?: string): Promise<Lead> {
+    return await db.transaction(async (tx: any) => {
+      // Get the current lead and check if it's available for assignment
+      const [currentLead] = await tx.select().from(leads).where(eq(leads.id, leadId));
+
+      if (!currentLead) {
+        throw new Error("Lead not found");
+      }
+
+      const previousOwnerId = currentLead.currentOwnerId;
+
+      // Determine if this is an HR self-assignment (requires unassigned lead)
+      const isHRSelfAssign = toUserId === changedByUserId && previousOwnerId === null;
+
+      // For HR self-assignment, use atomic update with condition to prevent race conditions
+      if (isHRSelfAssign) {
+        const result = await tx
+          .update(leads)
+          .set({
+            currentOwnerId: toUserId,
+            updatedAt: new Date()
+          })
+          .where(and(eq(leads.id, leadId), isNull(leads.currentOwnerId)))
+          .returning();
+
+        if (result.length === 0) {
+          // Lead was already assigned by another HR user
+          throw new Error("Lead is already assigned to another user");
+        }
+
+        const [updatedLead] = result;
+
+        // Create history entry for the assignment
+        await tx.insert(leadHistory).values({
+          leadId: leadId,
+          fromUserId: previousOwnerId,
+          toUserId: toUserId,
+          previousStatus: currentLead.status,
+          newStatus: currentLead.status, // Status remains the same
+          changeReason: reason || "Lead assigned",
+          changeData: {
+            action: "assignment",
+            previousOwner: previousOwnerId,
+            newOwner: toUserId
+          },
+          changedByUserId: changedByUserId,
+        });
+
+        return updatedLead;
+      } else {
+        // For manager/admin reassignments, allow unconditional updates
+        const [updatedLead] = await tx
+          .update(leads)
+          .set({
+            currentOwnerId: toUserId,
+            updatedAt: new Date()
+          })
+          .where(eq(leads.id, leadId))
+          .returning();
+
+        // Create history entry for the assignment
+        await tx.insert(leadHistory).values({
+          leadId: leadId,
+          fromUserId: previousOwnerId,
+          toUserId: toUserId,
+          previousStatus: currentLead.status,
+          newStatus: currentLead.status, // Status remains the same
+          changeReason: reason || "Lead assigned",
+          changeData: {
+            action: "assignment",
+            previousOwner: previousOwnerId,
+            newOwner: toUserId
+          },
+          changedByUserId: changedByUserId,
+        });
+
+        return updatedLead;
+      }
+    });
+  }
+
+  async searchLeads(filters: {
+    status?: string;
+    ownerId?: string;
+    accountsId?: string;
+    fromDate?: string;
+    toDate?: string;
+    search?: string;
+    page?: number;
+    limit?: number;
+    unassigned?: boolean;
+    excludeCompleted?: boolean;
+    excludeAccountsPending?: boolean;
+    previousOwnerId?: string;
+    includeHistory?: boolean;
+    showAllCompleted?: boolean;
+    category?: string;
+    includePreviouslyOwned?: string;
+    accountsStatuses?: string[]; // NEW: array of statuses for Accounts users
+    statuses?: string[]; // NEW: array of statuses for Session Organizer
+  }): Promise<{ leads: any[]; total: number; }> {
+    const { status, ownerId, accountsId, fromDate, toDate, search, page = 1, limit = 20, unassigned, excludeCompleted, excludeAccountsPending, previousOwnerId, includeHistory, showAllCompleted, category, includePreviouslyOwned, accountsStatuses, statuses } = filters;
+
+    // Join with users table to get current owner details
+    let query = db.select({
+      id: leads.id,
+      name: leads.name,
+      email: leads.email,
+      phone: leads.phone,
+      location: leads.location,
+      degree: leads.degree,
+      domain: leads.domain,
+      sessionDays: leads.sessionDays,
+      walkinDate: leads.walkinDate,
+      walkinTime: leads.walkinTime,
+      timing: leads.timing,
+      currentOwnerId: leads.currentOwnerId,
+      sourceManagerId: leads.sourceManagerId,
+      status: leads.status,
+      isActive: leads.isActive,
+      notes: leads.notes,
+      yearOfPassing: leads.yearOfPassing,
+      collegeName: leads.collegeName,
+      registrationAmount: leads.registrationAmount,
+      pendingAmount: leads.pendingAmount,
+      partialAmount: leads.partialAmount,
+      transactionNumber: leads.transactionNumber,
+      concession: leads.concession,
+      createdAt: leads.createdAt,
+      updatedAt: leads.updatedAt,
+      // Include current owner details
+      currentOwner: {
+        id: users.id,
+        firstName: users.firstName,
+        lastName: users.lastName,
+        fullName: users.fullName,
+        email: users.email,
+        role: users.role,
+        username: users.username
+      }
+    })
+      .from(leads)
+      .leftJoin(users, eq(leads.currentOwnerId, users.id));
+
+    let countQuery = db.select({ count: count().as('count') }).from(leads);
+
+    const conditions = [];
+
+    if (status) {
+      conditions.push(eq(leads.status, status));
+    }
+
+    // NEW: Support for multiple statuses (for Accounts users)
+    if (accountsStatuses && Array.isArray(accountsStatuses) && accountsStatuses.length > 0) {
+      console.log(`[searchLeads] Using accountsStatuses filter: ${JSON.stringify(accountsStatuses)} `);
+      conditions.push(inArray(leads.status, accountsStatuses));
+    }
+
+    // NEW: Support for statuses filter (for Session Organizer)
+    if (statuses && Array.isArray(statuses) && statuses.length > 0) {
+      console.log(`[searchLeads] Using statuses filter: ${JSON.stringify(statuses)} `);
+      conditions.push(inArray(leads.status, statuses));
+    }
+
+    console.log(`[searchLeads] Filters received: `, JSON.stringify({ status, ownerId, accountsId, accountsStatuses, statuses, excludeCompleted, excludeAccountsPending }));
+
+    // Handle excludeCompleted filter for HR "My Leads"
+    if (excludeCompleted) {
+      conditions.push(sql`${leads.status} != 'completed'`);
+    }
+
+    // Handle excludeAccountsPending filter for HR "My Leads"
+    if (excludeAccountsPending) {
+      conditions.push(sql`${leads.status} != 'accounts_pending'`);
+    }
+
+    // Handle special unassigned filter for HR users
+    if (unassigned) {
+      conditions.push(isNull(leads.currentOwnerId));
+    } else if (!accountsStatuses || accountsStatuses.length === 0) {
+      // Only apply owner filtering if accountsStatuses is NOT set
+      // When accountsStatuses is set, we want ALL leads with those statuses regardless of owner
+      if (ownerId && accountsId) {
+        // If both are provided, use OR logic to find leads owned by either
+        conditions.push(
+          or(
+            eq(leads.currentOwnerId, ownerId),
+            eq(leads.currentOwnerId, accountsId)
+          )
+        );
+      } else if (ownerId) {
+        conditions.push(eq(leads.currentOwnerId, ownerId));
+      } else if (accountsId) {
+        // For accountsId, show leads assigned to this user OR leads with 'accounts_pending' status
+        conditions.push(
+          or(
+            eq(leads.currentOwnerId, accountsId),
+            eq(leads.status, 'accounts_pending')
+          )
+        );
+      }
+    }
+    // When accountsStatuses is set, we skip owner filtering entirely to show ALL leads with those statuses
+
+    // Handle includePreviouslyOwned filter (leads user has touched in the past)
+    if (includePreviouslyOwned) {
+      try {
+        const historicalLeadIdsResult = await db
+          .select({ leadId: leadHistory.leadId })
+          .from(leadHistory)
+          .where(or(
+            eq(leadHistory.fromUserId, includePreviouslyOwned),
+            eq(leadHistory.toUserId, includePreviouslyOwned)
+          ));
+
+        const historicalLeadIds = historicalLeadIdsResult.map((r: any) => r.leadId);
+
+        if (historicalLeadIds.length > 0) {
+          // If we already have an ownerId filter, we want leads that are EITHER currently owned OR previously owned
+          const currentOwnerFilter = conditions.find(c => c && (c as any).column === leads.currentOwnerId);
+          // This is a bit complex for drizzle simple filter array. 
+          // We'll replace the last owner-specific condition with an OR if it exists.
+
+          // Actually, let's just add it as an OR to the overall conditions if we have ownerId
+          if (ownerId || accountsId) {
+            // We need to group the current owner check and the historical check in an OR
+            // But searchLeads is already complex. Let's simplify.
+            // We'll just add it to the list of IDs if we are looking for "my" leads.
+          }
+
+          // Simple approach: if includePreviouslyOwned is set, we use it to expand the search results
+          // to include leads the user has touched.
+          conditions.push(or(
+            ownerId ? eq(leads.currentOwnerId, ownerId) : sql`false`,
+            accountsId ? eq(leads.currentOwnerId, accountsId) : sql`false`,
+            inArray(leads.id, historicalLeadIds)
+          ));
+        }
+      } catch (err) {
+        console.error("Error in includePreviouslyOwned filter:", err);
+      }
+    }
+
+    // Handle previousOwnerId filter for completed leads (find leads completed by specific HR user)
+    // OR showAllCompleted for managers to see all completed leads  
+    if (previousOwnerId || showAllCompleted) {
+      try {
+        let completedLeadIds;
+
+        if (showAllCompleted) {
+          // Manager access - show all completed leads by any HR user
+          const result = await db.execute(sql`SELECT DISTINCT lead_id FROM lead_history WHERE new_status IN('completed', 'pending', 'accounts_pending')`);
+          completedLeadIds = result.rows.map((row: any) => ({ leadId: row.lead_id || row.leadId }));
+        } else {
+          // HR access - show leads completed by this specific user OR all leads pending accounts
+          // Accounts access - show only truly completed leads (exclude accounts_pending when flag is set)
+
+          if (excludeAccountsPending) {
+            // For Accounts users: EXCLUDE accounts_pending from completion
+            const querySql = sql`
+              SELECT DISTINCT lead_id 
+              FROM lead_history
+WHERE(changed_by_user_id = ${previousOwnerId} OR from_user_id = ${previousOwnerId})
+              AND new_status IN('completed', 'pending', 'ready_for_class')
+  `;
+            const result = await db.execute(querySql);
+            completedLeadIds = result.rows.map((row: any) => ({
+              leadId: parseInt(row.lead_id || row.leadId)
+            })).filter((r: { leadId: number }) => !isNaN(r.leadId));
+
+            console.log(`[storage.searchLeads] Found ${completedLeadIds.length} completed leads(excluding accounts_pending) for user ${previousOwnerId}`);
+          } else {
+            // For HR users: INCLUDE accounts_pending in completion
+            const querySql = sql`
+              SELECT DISTINCT lead_id 
+              FROM lead_history
+WHERE(changed_by_user_id = ${previousOwnerId} OR from_user_id = ${previousOwnerId})
+              AND new_status IN('completed', 'pending', 'accounts_pending', 'ready_for_class')
+UNION
+              SELECT id as lead_id FROM leads WHERE status = 'accounts_pending'
+  `;
+            const result = await db.execute(querySql);
+            completedLeadIds = result.rows.map((row: any) => ({
+              leadId: parseInt(row.lead_id || row.leadId)
+            })).filter((r: { leadId: number }) => !isNaN(r.leadId));
+
+            console.log(`[storage.searchLeads] Found ${completedLeadIds.length} leads(history + accounts_pending) for user ${previousOwnerId}`);
+          }
+        }
+
+        const leadIds = completedLeadIds.map((row: any) => row.leadId as number).filter((value: number, index: number, self: number[]) => self.indexOf(value) === index);
+
+        if (leadIds.length > 0) {
+          conditions.push(inArray(leads.id, leadIds));
+        } else {
+          // No leads found, return empty result
+          return { leads: [], total: 0 };
+        }
+      } catch (error) {
+        console.error('[storage.searchLeads] Error fetching completed leads history:', error);
+        return { leads: [], total: 0 };
+      }
+    }
+
+    if (fromDate) {
+      conditions.push(gte(leads.createdAt, new Date(fromDate)));
+    }
+
+    if (toDate) {
+      // Include end of day for toDate to make it inclusive
+      const endOfDay = new Date(toDate + 'T23:59:59.999Z');
+      conditions.push(lte(leads.createdAt, endOfDay));
+    }
+
+    if (search) {
+      conditions.push(
+        or(
+          like(leads.name, `% ${search}% `),
+          like(leads.email, `% ${search}% `),
+          like(leads.phone, `% ${search}% `)
+        )
+      );
+    }
+
+    if (category) {
+      // Use both exact match and ILIKE for robustness
+      conditions.push(or(
+        eq(leads.category, category as any),
+        like(leads.category, `% ${category}% `)
+      ));
+    }
+
+    console.log(`[searchLeads] Total conditions: ${conditions.length} `);
+
+    if (conditions.length > 0) {
+      // Filter out any undefined or null conditions to prevent Drizzle errors
+      const validConditions = conditions.filter(c => c !== undefined && c !== null);
+      console.log(`[searchLeads] Valid conditions: ${validConditions.length} `);
+      if (validConditions.length > 0) {
+        const whereClause = and(...validConditions);
+        query = query.where(whereClause);
+        countQuery = countQuery.where(whereClause);
+      }
+    }
+
+    const [leadsResult, totalResult] = await Promise.all([
+      query.limit(limit).offset((page - 1) * limit).orderBy(desc(leads.updatedAt)),
+      countQuery
+    ]);
+
+    console.log(`[searchLeads] Query returned ${leadsResult.length} leads, total count: ${totalResult[0].count} `);
+
+    const processedLeads = leadsResult.map((lead: any) => ({
+      ...lead,
+      currentOwner: lead.currentOwner?.id ? lead.currentOwner : null
+    }));
+
+    return {
+      leads: processedLeads,
+      total: totalResult[0].count
+    };
+  }
+
+  // Lead history operations
+  async createLeadHistory(history: InsertLeadHistory): Promise<LeadHistory> {
+    const [newHistory] = await db.insert(leadHistory).values(history).returning();
+    return newHistory;
+  }
+
+  async getLeadHistory(leadId: number): Promise<LeadHistory[]> {
+    return await db
+      .select()
+      .from(leadHistory)
+      .where(eq(leadHistory.leadId, leadId))
+      .orderBy(desc(leadHistory.changedAt));
+  }
+
+  async getAllLeadHistory(): Promise<LeadHistory[]> {
+    return await db
+      .select()
+      .from(leadHistory)
+      .orderBy(desc(leadHistory.changedAt));
+  }
+
+  // Upload operations
+  async createUpload(upload: InsertUpload): Promise<Upload> {
+    const [newUpload] = await db.insert(uploads).values(upload).returning();
+    return newUpload;
+  }
+
+  async updateUpload(id: number, updates: Partial<Upload>): Promise<Upload> {
+    const [upload] = await db
+      .update(uploads)
+      .set(updates)
+      .where(eq(uploads.id, id))
+      .returning();
+    return upload;
+  }
+
+  async getUploadsByUser(userId: string): Promise<Upload[]> {
+    return await db
+      .select()
+      .from(uploads)
+      .where(eq(uploads.uploaderId, userId))
+      .orderBy(desc(uploads.uploadedAt));
+  }
+
+  // Notification operations
+  async createNotification(notification: InsertNotification): Promise<Notification> {
+    const [newNotification] = await db.insert(notifications).values(notification).returning();
+    return newNotification;
+  }
+
+  async getUserNotifications(userId: string): Promise<Notification[]> {
+    return await db
+      .select()
+      .from(notifications)
+      .where(eq(notifications.userId, userId))
+      .orderBy(desc(notifications.createdAt));
+  }
+
+  async markNotificationRead(id: number): Promise<void> {
+    await db
+      .update(notifications)
+      .set({ isRead: true })
+      .where(eq(notifications.id, id));
+  }
+
+  async deleteUserNotifications(userId: string): Promise<void> {
+    await db
+      .delete(notifications)
+      .where(eq(notifications.userId, userId));
+  }
+
+  // Analytics operations
+  async getLeadMetrics(category?: string): Promise<{
+    totalLeads: number;
+    activeHR: number;
+    completed: number;
+    statusDistribution: Record<string, number>;
+  }> {
+    // Build base condition for category filter
+    const categoryCondition = category ? eq(leads.category, category as any) : null;
+
+    // Total leads query
+    let totalLeadsQuery = db.select({ count: count() }).from(leads);
+    if (categoryCondition) {
+      totalLeadsQuery = totalLeadsQuery.where(categoryCondition);
+    }
+    const [totalLeadsResult] = await totalLeadsQuery;
+
+    // Active HR leads query
+    const baseActiveConditions = and(
+      eq(leads.isActive, true),
+      inArray(leads.status, ['new', 'register', 'scheduled', 'not_available', 'reschedule'])
+    );
+    let activeHRQuery = db.select({ count: count() }).from(leads);
+    if (categoryCondition) {
+      activeHRQuery = activeHRQuery.where(and(baseActiveConditions, categoryCondition));
+    } else {
+      activeHRQuery = activeHRQuery.where(baseActiveConditions);
+    }
+    const [activeHRResult] = await activeHRQuery;
+
+    // Completed leads query
+    const completedCondition = eq(leads.status, 'completed');
+    let completedQuery = db.select({ count: count() }).from(leads);
+    if (categoryCondition) {
+      completedQuery = completedQuery.where(and(completedCondition, categoryCondition));
+    } else {
+      completedQuery = completedQuery.where(completedCondition);
+    }
+    const [completedResult] = await completedQuery;
+
+    // Status distribution query
+    let statusQuery = db
+      .select({
+        status: leads.status,
+        count: count()
+      })
+      .from(leads);
+
+    if (categoryCondition) {
+      statusQuery = statusQuery.where(categoryCondition);
+    }
+
+    const statusDistributionResult = await statusQuery.groupBy(leads.status);
+
+    const statusDistribution: Record<string, number> = {};
+    statusDistributionResult.forEach((row: any) => {
+      statusDistribution[row.status] = row.count;
+    });
+
+    return {
+      totalLeads: totalLeadsResult.count,
+      activeHR: activeHRResult.count,
+      completed: completedResult.count,
+      statusDistribution
+    };
+  }
+
+  // Export operations - get leads with user information
+  async getLeadsWithUserInfo(filters: {
+    status?: string;
+    ownerId?: string;
+    accountsId?: string;
+    fromDate?: string;
+    toDate?: string;
+    limit?: number;
+  }): Promise<any[]> {
+    const { status, ownerId, accountsId, fromDate, toDate, limit = 10000 } = filters;
+
+    // Get leads first, then fetch user info separately to avoid complex joins
+    const searchResult = await this.searchLeads({
+      status,
+      ownerId,
+      accountsId,
+      fromDate,
+      toDate,
+      limit
+    });
+
+    const leadsWithUsers = [];
+
+    for (const lead of searchResult.leads) {
+      // Get current owner info
+      let hrName = null;
+      let accountsHandlerName = null;
+      if (lead.currentOwnerId) {
+        const currentOwner = await this.getUser(lead.currentOwnerId);
+        if (currentOwner) {
+          const fullName = `${currentOwner.firstName || ''} ${currentOwner.lastName || ''} `.trim();
+          if (currentOwner.role === 'hr') {
+            hrName = fullName;
+          } else if (currentOwner.role === 'accounts') {
+            accountsHandlerName = fullName;
+          }
+        }
+      }
+
+      // Get manager info
+      let managerName = null;
+      if (lead.sourceManagerId) {
+        const manager = await this.getUser(lead.sourceManagerId);
+        if (manager) {
+          managerName = `${manager.firstName || ''} ${manager.lastName || ''} `.trim();
+        }
+      }
+
+      leadsWithUsers.push({
+        ...lead,
+        hrName,
+        accountsHandlerName,
+        managerName
+      });
+    }
+
+    return leadsWithUsers;
+  }
+
+  async getLeadsByCategory(category: string): Promise<any[]> {
+    try {
+      const result = await db
+        .select()
+        .from(leads)
+        .where(eq(leads.category, category as any))
+        .leftJoin(users, eq(leads.currentOwnerId, users.id))
+        .orderBy(desc(leads.createdAt));
+
+      return result.map((row: any) => ({
+        ...row.leads,
+        currentOwner: row.users
+      }));
+    } catch (error) {
+      console.error("Error fetching leads by category:", error);
+      return [];
+    }
+  }
+
+  // Chat transcript operations
+  async createChatTranscript(transcript: InsertChatTranscript): Promise<ChatTranscript> {
+    const [newTranscript] = await db.insert(chatTranscripts).values(transcript).returning();
+    return newTranscript;
+  }
+
+  async getAllChatTranscripts(): Promise<Array<ChatTranscript & { hrUser: User | null }>> {
+    const result = await db
+      .select({
+        id: chatTranscripts.id,
+        hrUserId: chatTranscripts.hrUserId,
+        question: chatTranscripts.question,
+        answer: chatTranscripts.answer,
+        category: chatTranscripts.category,
+        createdAt: chatTranscripts.createdAt,
+        hrUser: {
+          id: users.id,
+          email: users.email,
+          firstName: users.firstName,
+          lastName: users.lastName,
+          fullName: users.fullName,
+          role: users.role,
+          username: users.username,
+          profileImageUrl: users.profileImageUrl,
+          passwordHash: users.passwordHash,
+          isActive: users.isActive,
+          createdAt: users.createdAt,
+          updatedAt: users.updatedAt,
+        }
+      })
+      .from(chatTranscripts)
+      .leftJoin(users, eq(chatTranscripts.hrUserId, users.id))
+      .orderBy(desc(chatTranscripts.createdAt));
+
+    return result.map((row: any) => ({
+      id: row.id,
+      hrUserId: row.hrUserId,
+      question: row.question,
+      answer: row.answer,
+      category: row.category,
+      createdAt: row.createdAt,
+      hrUser: row.hrUser?.id ? row.hrUser : null
+    }));
+  }
+
+  async deleteChatTranscript(id: number): Promise<void> {
+    await db.delete(chatTranscripts).where(eq(chatTranscripts.id, id));
+  }
+
+  // Productivity event operations
+  async createProductivityEvents(events: InsertProductivityEvent[]): Promise<ProductivityEvent[]> {
+    if (events.length === 0) return [];
+    const newEvents = await db.insert(productivityEvents).values(events).returning();
+    return newEvents;
+  }
+
+  async getProductivityEvents(filters: {
+    userId?: string;
+    eventType?: string;
+    fromDate?: string;
+    toDate?: string;
+  }): Promise<ProductivityEvent[]> {
+    const { userId, eventType, fromDate, toDate } = filters;
+    const conditions = [];
+
+    if (userId) {
+      conditions.push(eq(productivityEvents.userId, userId));
+    }
+    if (eventType) {
+      conditions.push(eq(productivityEvents.eventType, eventType as any));
+    }
+    if (fromDate) {
+      conditions.push(gte(productivityEvents.createdAt, new Date(fromDate)));
+    }
+    if (toDate) {
+      conditions.push(lte(productivityEvents.createdAt, new Date(toDate)));
+    }
+
+    let query = db.select().from(productivityEvents);
+    if (conditions.length > 0) {
+      query = query.where(and(...conditions)) as any;
+    }
+
+    return await query.orderBy(desc(productivityEvents.createdAt));
+  }
+
+  async getProductivityStats(userId?: string): Promise<{
+    mouseIdleWarnings: number;
+    keyboardIdleWarnings: number;
+    longKeyPressWarnings: number;
+    tabSwitches: number;
+    tabSwitchUrls: Array<{ url: string; fromUrl: string; count: number; totalDuration: number; lastVisit: Date }>;
+  }> {
+    const baseCondition = userId ? eq(productivityEvents.userId, userId) : sql`true`;
+
+    const [mouseIdle] = await db
+      .select({ count: count() })
+      .from(productivityEvents)
+      .where(and(baseCondition, eq(productivityEvents.eventType, 'mouseIdleWarning')));
+
+    const [keyboardIdle] = await db
+      .select({ count: count() })
+      .from(productivityEvents)
+      .where(and(baseCondition, eq(productivityEvents.eventType, 'keyboardIdleWarning')));
+
+    const [longKeyPress] = await db
+      .select({ count: count() })
+      .from(productivityEvents)
+      .where(and(baseCondition, eq(productivityEvents.eventType, 'longKeyPressWarning')));
+
+    const [tabSwitch] = await db
+      .select({ count: count() })
+      .from(productivityEvents)
+      .where(and(baseCondition, eq(productivityEvents.eventType, 'tabSwitch')));
+
+    const tabSwitchEvents = await db
+      .select()
+      .from(productivityEvents)
+      .where(and(baseCondition, eq(productivityEvents.eventType, 'tabSwitch')))
+      .orderBy(desc(productivityEvents.createdAt));
+
+    const urlMap = new Map<string, { fromUrl: string; count: number; totalDuration: number; lastVisit: Date }>();
+    for (const event of tabSwitchEvents) {
+      const metadata = event.metadata as { url?: string; fromUrl?: string; duration?: number } | null;
+      const url = metadata?.url || 'Unknown';
+      const fromUrl = metadata?.fromUrl || 'Unknown page';
+      const duration = metadata?.duration || 0;
+      const key = `${fromUrl} `;
+      const existing = urlMap.get(key);
+      if (existing) {
+        existing.count++;
+        existing.totalDuration += duration;
+        if (event.createdAt && event.createdAt > existing.lastVisit) {
+          existing.lastVisit = event.createdAt;
+        }
+      } else {
+        urlMap.set(key, { fromUrl: fromUrl, count: 1, totalDuration: duration, lastVisit: event.createdAt! });
+      }
+    }
+
+    const tabSwitchUrls = Array.from(urlMap.entries()).map(([key, data]) => ({
+      url: key,
+      fromUrl: data.fromUrl,
+      count: data.count,
+      totalDuration: data.totalDuration,
+      lastVisit: data.lastVisit
+    }));
+
+    return {
+      mouseIdleWarnings: mouseIdle.count,
+      keyboardIdleWarnings: keyboardIdle.count,
+      longKeyPressWarnings: longKeyPress.count,
+      tabSwitches: tabSwitch.count,
+      tabSwitchUrls
+    };
+  }
+
+  async getHRProductivitySummary(): Promise<Array<{
+    userId: string;
+    userName: string;
+    mouseIdleWarnings: number;
+    keyboardIdleWarnings: number;
+    longKeyPressWarnings: number;
+    tabSwitches: number;
+  }>> {
+    const hrUsers = await db.select().from(users).where(
+      and(eq(users.role, 'hr'), eq(users.isActive, true))
+    );
+
+    const summaries = [];
+    for (const user of hrUsers) {
+      const stats = await this.getProductivityStats(user.id);
+      summaries.push({
+        userId: user.id,
+        userName: user.fullName || user.username || user.email || 'Unknown',
+        mouseIdleWarnings: stats.mouseIdleWarnings,
+        keyboardIdleWarnings: stats.keyboardIdleWarnings,
+        longKeyPressWarnings: stats.longKeyPressWarnings,
+        tabSwitches: stats.tabSwitches
+      });
+    }
+
+    return summaries;
+  }
+
+  // Kathaipom (Social Feed) operations
+  async createPost(userId: string, content: string, imageUrl?: string): Promise<any> {
+    const result: any = await db.execute(sql`
+      INSERT INTO posts(user_id, content, image_url)
+VALUES(${userId}, ${content}, ${imageUrl || null})
+RETURNING *
+  `);
+    return result.rows[0];
+  }
+
+  async getPosts(limit: number = 50, offset: number = 0): Promise<any[]> {
+    const result: any = await db.execute(sql`
+SELECT
+p.*,
+  u.id as author_user_id,
+  u.full_name as author_name,
+  u.email as author_email,
+  (SELECT COUNT(*)::int FROM post_likes WHERE post_id = p.id) as like_count,
+    (SELECT COUNT(*)::int FROM post_comments WHERE post_id = p.id) as comment_count
+      FROM posts p
+      LEFT JOIN users u ON p.user_id = u.id
+      ORDER BY p.created_at DESC
+      LIMIT ${limit} OFFSET ${offset}
+`);
+    return result.rows;
+  }
+
+  async getPostById(postId: number): Promise<any | undefined> {
+    const result: any = await db.execute(sql`
+SELECT
+p.*,
+  u.id as author_user_id,
+  u.full_name as author_name,
+  u.email as author_email,
+  (SELECT COUNT(*)::int FROM post_likes WHERE post_id = p.id) as like_count,
+    (SELECT COUNT(*)::int FROM post_comments WHERE post_id = p.id) as comment_count
+      FROM posts p
+      LEFT JOIN users u ON p.user_id = u.id
+      WHERE p.id = ${postId}
+`);
+    return result.rows[0];
+  }
+
+  async deletePost(postId: number): Promise<void> {
+    await db.execute(sql`DELETE FROM posts WHERE id = ${postId} `);
+  }
+
+  async likePost(postId: number, userId: string): Promise<{ liked: boolean }> {
+    const logPath = path.join(process.cwd(), 'kathaipom_debug.log');
+    try {
+      // Append to a debug file we can read
+      const logMsg = `${new Date().toISOString()} [STORAGE] LIKING - Post: ${postId}, User: ${userId} \n`;
+      fs.appendFileSync(logPath, logMsg);
+
+      // Check if already liked
+      const existing: any = await db.execute(sql`
+SELECT * FROM post_likes WHERE post_id = ${postId} AND user_id = ${userId}
+`);
+
+      if (existing.rows && existing.rows.length > 0) {
+        // Unlike
+        await db.execute(sql`
+          DELETE FROM post_likes WHERE post_id = ${postId} AND user_id = ${userId}
+`);
+        fs.appendFileSync(logPath, `[STORAGE] UNLIKED SUCCESS\n`);
+        return { liked: false };
+      } else {
+        // Like
+        await db.execute(sql`
+          INSERT INTO post_likes(post_id, user_id)
+VALUES(${postId}, ${userId})
+  `);
+        fs.appendFileSync(logPath, `[STORAGE] LIKED SUCCESS\n`);
+        return { liked: true };
+      }
+    } catch (err: any) {
+      fs.appendFileSync(logPath, `[STORAGE] ERROR: ${err.message} \n`);
+      throw err;
+    }
+  }
+
+  async unlikePost(postId: number, userId: string): Promise<void> {
+    await db.execute(sql`
+      DELETE FROM post_likes WHERE post_id = ${postId} AND user_id = ${userId}
+`);
+  }
+
+  async getPostLikes(postId: number): Promise<any[]> {
+    const result: any = await db.execute(sql`
+SELECT * FROM post_likes WHERE post_id = ${postId}
+`);
+    return result.rows;
+  }
+
+  async addComment(postId: number, userId: string, userName: string, userEmail: string, commentText: string): Promise<any> {
+    const result: any = await db.execute(sql`
+      INSERT INTO post_comments(post_id, user_id, comment_text)
+VALUES(${postId}, ${userId}, ${commentText})
+RETURNING *
+  `);
+
+    const comment = result.rows[0];
+    return {
+      ...comment,
+      user_name: userName,
+      user_email: userEmail
+    };
+  }
+
+  async getPostComments(postId: number): Promise<any[]> {
+    const result: any = await db.execute(sql`
+SELECT
+c.*,
+  u.full_name as user_name,
+  u.email as user_email
+      FROM post_comments c
+      LEFT JOIN users u ON c.user_id = u.id
+      WHERE c.post_id = ${postId}
+      ORDER BY c.created_at DESC
+    `);
+
+    // Format for client expectation
+    return result.rows.map((row: any) => ({
+      id: row.id,
+      post_id: row.post_id,
+      user_id: row.user_id,
+      comment_text: row.comment_text,
+      created_at: row.created_at,
+      user_name: row.user_name || 'User',
+      user_email: row.user_email || ''
+    }));
+  }
+
+  async deleteComment(commentId: number): Promise<void> {
+    await db.execute(sql`DELETE FROM post_comments WHERE id = ${commentId} `);
+  }
+
+  // Class Management operations
+  async createClass(classData: InsertClass): Promise<Class> {
+    try {
+      console.log('[Storage] Creating class with data:', JSON.stringify(classData));
+      const [newClass] = await db.insert(classes).values(classData).returning();
+      console.log('[Storage] Class created in DB:', JSON.stringify(newClass));
+      return newClass;
+    } catch (error: any) {
+      console.error('[Storage] Error creating class:', error);
+      throw error;
+    }
+  }
+
+  async getClasses(instructorId?: string): Promise<Class[]> {
+    if (instructorId) {
+      return await db.select().from(classes).where(eq(classes.instructorId, instructorId)).orderBy(desc(classes.createdAt));
+    }
+    return await db.select().from(classes).orderBy(desc(classes.createdAt));
+  }
+
+  async getClassesWithStudentCount(instructorId?: string): Promise<Array<Class & { studentCount: number }>> {
+    const classList = await this.getClasses(instructorId);
+    const results = [];
+
+    for (const cls of classList) {
+      const [countResult] = await db
+        .select({ count: count() })
+        .from(classStudents)
+        .where(eq(classStudents.classId, cls.id));
+
+      results.push({
+        ...cls,
+        studentCount: countResult.count
+      });
+    }
+
+    return results;
+  }
+
+  async getClass(id: number): Promise<Class | undefined> {
+    const [cls] = await db.select().from(classes).where(eq(classes.id, id));
+    return cls;
+  }
+
+  async updateClass(id: number, updates: Partial<Class>): Promise<Class> {
+    const [updatedClass] = await db
+      .update(classes)
+      .set(updates)
+      .where(eq(classes.id, id))
+      .returning();
+    return updatedClass;
+  }
+
+  async deleteClass(id: number): Promise<void> {
+    // cascade delete handles classStudents
+    await db.delete(classes).where(eq(classes.id, id));
+  }
+
+  async addStudentToClass(classId: number, leadId: number): Promise<ClassStudent> {
+    const [newMapping] = await db
+      .insert(classStudents)
+      .values({ classId, leadId })
+      .returning();
+    return newMapping;
+  }
+
+  async removeStudentFromClass(classId: number, leadId: number): Promise<void> {
+    await db
+      .delete(classStudents)
+      .where(and(eq(classStudents.classId, classId), eq(classStudents.leadId, leadId)));
+  }
+
+  async getClassStudents(classId: number): Promise<Lead[]> {
+    const mappings = await db
+      .select({ leadId: classStudents.leadId })
+      .from(classStudents)
+      .where(eq(classStudents.classId, classId));
+
+    const leadIds = mappings.map((m: any) => m.leadId);
+    if (leadIds.length === 0) return [];
+
+    return await db
+      .select()
+      .from(leads)
+      .where(inArray(leads.id, leadIds));
+  }
+}
+
+export const storage = new DatabaseStorage();

@@ -61,7 +61,7 @@ debug_dump.json
 # HLS streaming artifacts
 hls-output/
 *.m3u8
-*.ts
+# Removed global *.ts to avoid ignoring source files
 
 # OS files
 .DS_Store
