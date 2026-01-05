@@ -9,6 +9,11 @@ echo "Starting custom build process..."
 echo "Installing all dependencies (including devDependencies)..."
 npm install --include=dev
 
+# Sync Database Schema
+echo "Syncing database schema..."
+# --force-accept-warnings is used to bypass prompts in a CI environment
+npx drizzle-kit push --force-accept-warnings
+
 # Build frontend with Vite
 echo "Building frontend..."
 npx vite build
