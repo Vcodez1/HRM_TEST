@@ -160,6 +160,8 @@ export const classes = pgTable("classes", {
   id: integer("id").primaryKey().generatedByDefaultAsIdentity(),
   name: text("name").notNull(),
   subject: text("subject"),
+  mentorEmail: text("mentor_email"),
+  mode: text("mode"),
   instructorId: varchar("instructor_id").references(() => users.id).notNull(),
   createdAt: timestamp("created_at").defaultNow(),
 });

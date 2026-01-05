@@ -9,6 +9,7 @@ import { Plus, Users, Layout, Calendar, MoreVertical, Pencil, Trash2, ArrowLeft,
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from "@/components/ui/dialog";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -44,6 +45,8 @@ export default function MyClassesPage() {
         defaultValues: {
             name: "",
             subject: "",
+            mentorEmail: "",
+            mode: "",
         },
     });
 
@@ -175,6 +178,47 @@ export default function MyClassesPage() {
                                                             value={field.value || ""}
                                                         />
                                                     </FormControl>
+                                                    <FormMessage />
+                                                </FormItem>
+                                            )}
+                                        />
+                                        <FormField
+                                            control={form.control}
+                                            name="mentorEmail"
+                                            render={({ field }) => (
+                                                <FormItem>
+                                                    <FormLabel className="text-slate-600 font-semibold">Mentor Email</FormLabel>
+                                                    <FormControl>
+                                                        <Input
+                                                            type="email"
+                                                            placeholder="e.g., mentor@example.com"
+                                                            {...field}
+                                                            className="rounded-xl h-12 border-slate-200 focus:border-indigo-500 focus:ring-indigo-500"
+                                                            value={field.value || ""}
+                                                        />
+                                                    </FormControl>
+                                                    <FormMessage />
+                                                </FormItem>
+                                            )}
+                                        />
+                                        <FormField
+                                            control={form.control}
+                                            name="mode"
+                                            render={({ field }) => (
+                                                <FormItem>
+                                                    <FormLabel className="text-slate-600 font-semibold">Mode</FormLabel>
+                                                    <Select onValueChange={field.onChange} value={field.value || ""}>
+                                                        <FormControl>
+                                                            <SelectTrigger className="rounded-xl h-12 border-slate-200 focus:border-indigo-500 focus:ring-indigo-500">
+                                                                <SelectValue placeholder="Select class mode" />
+                                                            </SelectTrigger>
+                                                        </FormControl>
+                                                        <SelectContent>
+                                                            <SelectItem value="online">Online</SelectItem>
+                                                            <SelectItem value="offline">Offline</SelectItem>
+                                                            <SelectItem value="hybrid">Hybrid</SelectItem>
+                                                        </SelectContent>
+                                                    </Select>
                                                     <FormMessage />
                                                 </FormItem>
                                             )}
