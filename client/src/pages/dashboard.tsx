@@ -250,32 +250,18 @@ export default function Dashboard() {
     retry: false,
   });
 
-  const { data: leadsData } = useQuery({
-    queryKey: ["/api/leads", activeCategoryFilter, (user as any)?.role],
-    queryFn: async () => {
-      const params = new URLSearchParams();
-      // Only add category filter if not "all"
-      if (activeCategoryFilter !== 'all') {
-        params.append('category', activeCategoryFilter);
-      }
-      const url = `/api/leads?${params}`;
-      const response = await fetch(url, { credentials: 'include' });
-      if (!response.ok) throw new Error("Failed to fetch leads");
-      return response.json();
-    },
-    retry: false,
-    refetchInterval: 3000,
-    refetchOnWindowFocus: true,
-  });
+  // redundant leadsData removed
 
   const { data: myLeadsData } = useQuery({
-    queryKey: ["/api/my/leads", (user as any)?.role],
+    queryKey: ["/api/my/leads", (user as any)?.role, activeCategoryFilter],
     queryFn: async () => {
       const params = new URLSearchParams();
-      // Don't filter by category - show all leads
-      // if (activeCategoryFilter !== 'all') {
-      //   params.append('category', activeCategoryFilter);
-      // }
+      // Apply category filter for HR/Session Coordinator
+      if ((user as any)?.role === 'hr' || (user as any)?.role === 'session-coordinator') {
+        if (activeCategoryFilter !== 'all' && activeCategoryFilter !== 'All Categories') {
+          params.append('category', activeCategoryFilter);
+        }
+      }
       const url = `/api/my/leads?${params.toString()}`;
       const response = await fetch(url, { credentials: 'include' });
       if (!response.ok) throw new Error("Failed to fetch leads");
@@ -287,13 +273,15 @@ export default function Dashboard() {
   });
 
   const { data: myCompletedData } = useQuery({
-    queryKey: ["/api/my/completed", (user as any)?.role],
+    queryKey: ["/api/my/completed", (user as any)?.role, activeCategoryFilter],
     queryFn: async () => {
       const params = new URLSearchParams();
-      // Don't filter by category - show all leads
-      // if (activeCategoryFilter !== 'all') {
-      //   params.append('category', activeCategoryFilter);
-      // }
+      // Apply category filter for HR/Session Coordinator
+      if ((user as any)?.role === 'hr' || (user as any)?.role === 'session-coordinator') {
+        if (activeCategoryFilter !== 'all' && activeCategoryFilter !== 'All Categories') {
+          params.append('category', activeCategoryFilter);
+        }
+      }
       const url = `/api/my/completed?${params.toString()}`;
       const response = await fetch(url, { credentials: 'include' });
       if (!response.ok) throw new Error("Failed to fetch leads");
@@ -377,11 +365,8 @@ export default function Dashboard() {
       }
     });
 
-    // If no personal data OR if we are a manager/admin, return metrics distribution 
-    // This ensures Managers always see the whole system activity
-    // If no personal data OR if we are a manager/admin, return metrics distribution 
-    // This ensures Managers always see the whole system activity
-    if (user?.role === 'manager' || user?.role === 'admin' || Object.keys(filteredStatuses).length === 0) {
+    // Only Fallback if we are a manager/admin
+    if (user?.role === 'manager' || user?.role === 'admin') {
       const dist: Record<string, number> = {};
 
       // Aggregate statuses from metrics distribution
@@ -404,6 +389,11 @@ export default function Dashboard() {
       }
 
       return dist;
+    }
+
+    // For HR/Accounts: If no personal data, return empty to show "No Data" instead of fallback to system metrics
+    if (Object.keys(filteredStatuses).length === 0) {
+      return {};
     }
 
     return filteredStatuses;
@@ -710,6 +700,21 @@ export default function Dashboard() {
                 changeLabel={managerCategoryFilter !== "all" ? "category filter" : "total collected"}
                 loading={metricsLoading}
                 testId="metric-revenue"
+              />
+            )}
+            {/* Available Leads Card for HR */}
+            {((user as any)?.role === "hr" || (user as any)?.role === "session-coordinator") && (
+              <MetricsCard
+                title="Available to Claim"
+                value={
+                  (metrics?.statusDistribution?.new || 0) +
+                  (metrics?.statusDistribution?.register || 0)
+                }
+                icon={Search}
+                change={selectedCategory}
+                changeLabel="in current category"
+                loading={metricsLoading}
+                testId="metric-available-leads"
               />
             )}
           </div>

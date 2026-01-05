@@ -1467,6 +1467,30 @@ export default function MyLeadsPage() {
                     data-testid="input-search-leads"
                   />
                 </div>
+
+                {/* Category Filter for HR Users */}
+                {user?.role === 'hr' && (
+                  <Select
+                    value={selectedCategory}
+                    onValueChange={(val) => {
+                      setSelectedCategory(val);
+                      localStorage.setItem("selectedCategory", val);
+                    }}
+                  >
+                    <SelectTrigger className="w-full sm:w-64" data-testid="select-category-filter">
+                      <Filter className="w-4 h-4 mr-2" />
+                      <SelectValue placeholder="Select Category" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="All Categories">All Categories</SelectItem>
+                      <SelectItem value="Client Hiring">Client Hiring</SelectItem>
+                      <SelectItem value="Technical Hiring">Technical Hiring</SelectItem>
+                      <SelectItem value="Talent Acquisition Executive">Talent Acquisition Executive</SelectItem>
+                      <SelectItem value="Medical Coding">Medical Coding</SelectItem>
+                    </SelectContent>
+                  </Select>
+                )}
+
                 <Select value={statusFilter} onValueChange={setStatusFilter}>
                   <SelectTrigger
                     className="w-full sm:w-48"

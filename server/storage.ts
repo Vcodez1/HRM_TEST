@@ -724,11 +724,11 @@ UNION
       );
     }
 
-    if (category) {
+    if (category && category !== 'All Categories' && category !== 'all') {
       // Use both exact match and ILIKE for robustness
       conditions.push(or(
         eq(leads.category, category as any),
-        like(leads.category, `% ${category}% `)
+        like(leads.category, `%${category}%`)
       ));
     }
 

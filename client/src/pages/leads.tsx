@@ -73,11 +73,10 @@ export default function Leads() {
         params.append('adminSubRole', currentAdminSubRole);
       }
 
-
-      // Don't filter by category for HR users - show all leads
-      // if ((user as any)?.role === 'hr' || (user as any)?.role === 'accounts' || (user as any)?.role === 'session-coordinator') {
-      //   params.append('category', selectedCategory);
-      // }
+      // Add category filter if not "All Categories"
+      if (selectedCategory && selectedCategory !== 'All Categories' && selectedCategory !== 'all') {
+        params.append('category', selectedCategory);
+      }
 
       const url = `/api/leads?${params.toString()}`;
       const res = await fetch(url, {
@@ -210,6 +209,29 @@ export default function Leads() {
                   <SelectItem value="ready_for_class">Ready for Class</SelectItem>
                 </SelectContent>
               </Select>
+
+              {/* Category Filter for HR Users */}
+              {(user as any)?.role === 'hr' && (
+                <Select
+                  value={selectedCategory}
+                  onValueChange={(val) => {
+                    setSelectedCategory(val);
+                    localStorage.setItem("selectedCategory", val);
+                  }}
+                >
+                  <SelectTrigger className="w-56" data-testid="select-category-filter">
+                    <Filter className="w-4 h-4 mr-2" />
+                    <SelectValue placeholder="Select Category" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="All Categories">All Categories</SelectItem>
+                    <SelectItem value="Client Hiring">Client Hiring</SelectItem>
+                    <SelectItem value="Technical Hiring">Technical Hiring</SelectItem>
+                    <SelectItem value="Talent Acquisition Executive">Talent Acquisition Executive</SelectItem>
+                    <SelectItem value="Medical Coding">Medical Coding</SelectItem>
+                  </SelectContent>
+                </Select>
+              )}
 
               {/* HR filter - only show for managers/admins, not for accounts */}
               {(user as any)?.role !== 'accounts' && (
