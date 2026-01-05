@@ -11,8 +11,8 @@ npm install --include=dev
 
 # Sync Database Schema
 echo "Syncing database schema..."
-# --force-accept-warnings is used to bypass prompts in a CI environment
-npx drizzle-kit push --force-accept-warnings
+# --force is the correct flag for drizzle-kit v0.30+ to bypass prompts
+npx drizzle-kit push --force
 
 # Build frontend with Vite
 echo "Building frontend..."
