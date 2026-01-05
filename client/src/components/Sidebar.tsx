@@ -25,7 +25,7 @@ import {
   BookOpen
 } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 
 export default function Sidebar() {
   const [location] = useLocation();
@@ -35,6 +35,25 @@ export default function Sidebar() {
   const [myCompletionExpanded, setMyCompletionExpanded] = useState(false);
   const isSessOrg = isSessionOrganizer((user as any)?.role);
   const currentAdminSubRole = getAdminSubRole();
+
+  // Sync selected category from localStorage for consistent filtering
+  const [selectedCategory, setSelectedCategory] = useState(() => {
+    if (typeof window !== "undefined") {
+      return localStorage.getItem("selectedCategory") || "Client Hiring";
+    }
+    return "Client Hiring";
+  });
+
+  // Listen for category changes across the app
+  useEffect(() => {
+    const handleStorageChange = () => {
+      const newCategory = localStorage.getItem("selectedCategory") || "Client Hiring";
+      setSelectedCategory(newCategory);
+    };
+
+    window.addEventListener("storage", handleStorageChange);
+    return () => window.removeEventListener("storage", handleStorageChange);
+  }, []);
 
   // Fetch team lead info for HR users
   const { data: teamLeadInfo } = useQuery({
@@ -61,15 +80,22 @@ export default function Sidebar() {
   });
 
   // Fetch my leads for HR, Accounts, Tech Support, Manager, and Admin users
+  // Now respects category selection and doesn't filter by status to show all assigned leads
   const { data: myLeadsData } = useQuery({
-    queryKey: ["/api/my/leads", { limit: 5, status: 'ready_for_class' }, currentAdminSubRole],
+    queryKey: ["/api/my/leads", { limit: 5, category: (user as any)?.role === 'accounts' || isSessOrg ? 'all' : selectedCategory }, currentAdminSubRole],
     queryFn: async () => {
       const params = new URLSearchParams();
       params.append("limit", "5");
-      params.append("status", "ready_for_class");
+
+      // Only add category filter for non-accounts/non-session_organizer users
+      if ((user as any)?.role !== 'accounts' && !isSessOrg) {
+        params.append("category", selectedCategory);
+      }
+
       if (currentAdminSubRole) {
         params.append("adminSubRole", currentAdminSubRole);
       }
+
       const response = await fetch(`/api/my/leads?${params.toString()}`, { credentials: "include" });
       if (!response.ok) return { leads: [], total: 0 };
       return response.json();
@@ -109,14 +135,22 @@ export default function Sidebar() {
     : (myLeadsData as any)?.total || 0;
 
   // Fetch my completed leads for HR, Accounts, Session Coordinator, Tech Support, Manager, and Admin users
+  // Now respects category selection for consistency
   const { data: myCompletedData } = useQuery({
-    queryKey: ["/api/my/completed", { limit: 5 }, currentAdminSubRole],
+    queryKey: ["/api/my/completed", { limit: 5, category: (user as any)?.role === 'accounts' || isSessOrg ? 'all' : selectedCategory }, currentAdminSubRole],
     queryFn: async () => {
       const params = new URLSearchParams();
       params.append("limit", "5");
+
+      // Only add category filter for non-accounts/non-session_organizer users
+      if ((user as any)?.role !== 'accounts' && !isSessOrg) {
+        params.append("category", selectedCategory);
+      }
+
       if (currentAdminSubRole) {
         params.append("adminSubRole", currentAdminSubRole);
       }
+
       const response = await fetch(`/api/my/completed?${params}`, { credentials: "include" });
       if (!response.ok) return { leads: [], total: 0 };
       return response.json();
