@@ -82,3 +82,21 @@ coverage/
 *.rar
 *.7z
 *.tar.gz
+
+# Automation & Push scripts
+push_to_github.ps1
+
+# Temporary/Backup Files
+*.backup
+
+# Other debug/test scripts
+check_data.ts
+clear-leads-sql.ts
+clear-leads.ts
+create-test-lead.ts
+debug-accounts-leads.ts
+debug_sql.ts
+dump_db.ts
+put-endpoint.ts
+test-accounts-query.ts
+test.ts
