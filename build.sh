@@ -5,22 +5,18 @@ set -e
 
 echo "Starting custom build process..."
 
-# Get current script directory
-PROJECT_ROOT=$(pwd)
-echo "Project root: $PROJECT_ROOT"
-
-# Install dependencies
-echo "Installing dependencies..."
-npm install
+# Force include dev dependencies during build phase regardless of NODE_ENV
+echo "Installing all dependencies (including devDependencies)..."
+npm install --include=dev
 
 # Build frontend with Vite
 echo "Building frontend..."
-# Vite uses absolute paths in vite.config.ts now
 npx vite build
 
 # Build backend with esbuild
 echo "Building backend..."
-# Fixed esbuild command for the server with absolute output path
-npx esbuild "$PROJECT_ROOT/server/index.ts" --platform=node --bundle --format=esm --packages=external --outfile="$PROJECT_ROOT/dist/index.js"
+# Explicitly set outfile to ensure start script finds it
+PROJECT_ROOT=$(pwd)
+npx esbuild server/index.ts --platform=node --bundle --format=esm --packages=external --outfile="$PROJECT_ROOT/dist/index.js"
 
 echo "Build complete!"
