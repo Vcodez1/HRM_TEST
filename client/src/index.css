@@ -54,8 +54,13 @@
   }
 
   body {
-    @apply font-sans antialiased text-black selection:bg-primary;
+    @apply font-sans antialiased text-black;
     background: transparent;
+  }
+
+  ::selection {
+    background-color: var(--primary);
+    color: var(--primary-foreground);
   }
 }
 
