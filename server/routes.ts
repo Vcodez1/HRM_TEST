@@ -3578,10 +3578,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post('/api/classes', isAuthenticated, async (req: any, res) => {
     try {
       const userId = req.user.claims.sub;
+      console.log('[POST /api/classes] User ID from token:', userId);
+      console.log('[POST /api/classes] User claims:', JSON.stringify(req.user.claims));
+
       const user = await storage.getUser(userId);
+      console.log('[POST /api/classes] User from DB:', user ? `ID: ${user.id}, Role: ${user.role}, Email: ${user.email}` : 'NOT FOUND');
 
       // Allow admins and session organizers to create classes
       if (!user || (user.role !== 'admin' && user.role !== 'session-coordinator' && user.role !== 'manager')) {
+        console.log('[POST /api/classes] Access denied - User role:', user?.role);
         return res.status(403).json({ message: 'Only admins and session organizers can create classes' });
       }
 
@@ -3591,13 +3596,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
         instructorId: userId, // Set instructor to current user
       });
 
-      console.log('[POST /api/classes] Creating class:', classData);
+      console.log('[POST /api/classes] Creating class with data:', JSON.stringify(classData));
 
       const newClass = await storage.createClass(classData);
+      console.log('[POST /api/classes] Class created successfully:', JSON.stringify(newClass));
 
       res.json(newClass);
     } catch (error: any) {
-      console.error('[POST /api/classes] Error:', error);
+      console.error('[POST /api/classes] Error:', error.message);
+      console.error('[POST /api/classes] Error stack:', error.stack);
       res.status(500).json({ message: 'Failed to create class', error: error.message });
     }
   });
