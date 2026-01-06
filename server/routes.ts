@@ -509,6 +509,91 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Lead details
+  app.get('/api/leads/:id', isAuthenticated, async (req: any, res) => {
+    try {
+      const leadId = parseInt(req.params.id);
+      if (isNaN(leadId)) return res.status(400).json({ message: "Invalid lead ID" });
+      const lead = await storage.getLead(leadId);
+      if (!lead) return res.status(404).json({ message: "Lead not found" });
+      res.json(lead);
+    } catch (error: any) {
+      res.status(500).json({ message: 'Failed to fetch lead', error: error.message });
+    }
+  });
+
+  // Class Management API
+  app.get('/api/classes/with-counts', isAuthenticated, async (req: any, res) => {
+    try {
+      const instructorId = req.user.claims.sub;
+      const classesResult = await storage.getClassesWithStudentCount(instructorId);
+      res.json(classesResult);
+    } catch (error: any) {
+      res.status(500).json({ message: 'Failed to fetch classes', error: error.message });
+    }
+  });
+
+  app.post('/api/classes', isAuthenticated, async (req: any, res) => {
+    try {
+      const instructorId = req.user.claims.sub;
+      const classData = insertClassSchema.parse({ ...req.body, instructorId });
+      const newClass = await storage.createClass(classData);
+      res.json(newClass);
+    } catch (error: any) {
+      res.status(400).json({ message: 'Failed to create class', error: error.message });
+    }
+  });
+
+  app.delete('/api/classes/:id', isAuthenticated, async (req: any, res) => {
+    try {
+      const classId = parseInt(req.params.id);
+      await storage.deleteClass(classId);
+      res.json({ message: 'Class deleted successfully' });
+    } catch (error: any) {
+      res.status(500).json({ message: 'Failed to delete class', error: error.message });
+    }
+  });
+
+  app.post('/api/classes/:id/students', isAuthenticated, async (req: any, res) => {
+    try {
+      const classId = parseInt(req.params.id);
+      const { leadIds } = req.body;
+
+      if (!Array.isArray(leadIds)) {
+        return res.status(400).json({ message: 'leadIds must be an array' });
+      }
+
+      for (const leadId of leadIds) {
+        await storage.addStudentToClass(classId, leadId);
+      }
+
+      res.json({ message: 'Students added successfully' });
+    } catch (error: any) {
+      res.status(500).json({ message: 'Failed to add students to class', error: error.message });
+    }
+  });
+
+  app.get('/api/my/completed', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const { category, search, page = 1, limit = 20 } = req.query;
+
+      const filters = {
+        ownerId: userId,
+        status: 'completed',
+        category: category as string,
+        search: search as string,
+        page: parseInt(page as string),
+        limit: parseInt(limit as string)
+      };
+
+      const result = await storage.searchLeads(filters);
+      res.json(result);
+    } catch (error: any) {
+      res.status(500).json({ message: 'Failed to fetch completed leads', error: error.message });
+    }
+  });
+
   // Auth routes
   app.get('/api/auth/user', isAuthenticated, async (req: any, res) => {
     try {
