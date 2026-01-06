@@ -1,12 +1,12 @@
 import { useQuery, useMutation } from "@tanstack/react-query";
-import { Class, InsertClass, insertClassSchema } from "@shared/schema";
+import { Class, InsertClass, insertClassSchema, Lead } from "@shared/schema";
 import { useAuth } from "@/hooks/useAuth";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Plus, Users, Layout, Calendar, MoreVertical, Pencil, Trash2, ArrowLeft, CheckCircle2, Award } from "lucide-react";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from "@/components/ui/dialog";
+import { Plus, Users, Layout, Calendar, MoreVertical, Pencil, Trash2, ArrowLeft, CheckCircle2, Award, Search } from "lucide-react";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -14,7 +14,7 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import Sidebar from "@/components/Sidebar";
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import {
     DropdownMenu,
     DropdownMenuContent,
@@ -23,6 +23,8 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { format } from "date-fns";
 import { useLocation } from "wouter";
+import { Checkbox } from "@/components/ui/checkbox";
+import { ScrollArea } from "@/components/ui/scroll-area";
 
 type ClassWithCount = Class & { studentCount: number };
 
@@ -34,10 +36,25 @@ export default function MyClassesPage() {
     const { toast } = useToast();
     const [, setLocation] = useLocation();
     const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
+    const [selectedClassId, setSelectedClassId] = useState<number | null>(null);
+    const [isStudentModalOpen, setIsStudentModalOpen] = useState(false);
+    const [selectedStudentIds, setSelectedStudentIds] = useState<number[]>([]);
+    const [studentSearch, setStudentSearch] = useState("");
 
     const { data: classesList, isLoading } = useQuery<ClassWithCount[]>({
         queryKey: ["/api/classes/with-counts", { instructorId: user?.id }],
         enabled: !!user,
+    });
+
+    const { data: completedLeads } = useQuery<{ leads: Lead[] }>({
+        queryKey: ["/api/my/completed", studentSearch],
+        queryFn: async () => {
+            const params = new URLSearchParams();
+            if (studentSearch) params.append("search", studentSearch);
+            const res = await apiRequest("GET", `/api/my/completed?${params}`);
+            return res.json();
+        },
+        enabled: isStudentModalOpen,
     });
 
     const form = useForm<ClassFormValues>({
@@ -50,9 +67,19 @@ export default function MyClassesPage() {
         },
     });
 
-    // Handle form submission
+    const addStudentsMutation = useMutation({
+        mutationFn: async ({ classId, leadIds }: { classId: number; leadIds: number[] }) => {
+            await apiRequest("POST", `/api/classes/${classId}/students`, { leadIds });
+        },
+        onSuccess: () => {
+            toast({ title: "Success", description: "Students added to class" });
+            queryClient.invalidateQueries({ queryKey: ["/api/classes/with-counts"] });
+            setIsStudentModalOpen(false);
+            setSelectedStudentIds([]);
+        },
+    });
+
     const onSubmit = (data: ClassFormValues) => {
-        console.log("Form submitted with data:", data);
         createClassMutation.mutate(data as any);
     };
 
@@ -117,7 +144,6 @@ export default function MyClassesPage() {
             <Sidebar />
             <main className="flex-1 p-8 overflow-y-auto">
                 <div className="max-w-7xl mx-auto space-y-8">
-                    {/* Back Button */}
                     <Button
                         variant="outline"
                         size="sm"
@@ -266,6 +292,12 @@ export default function MyClassesPage() {
                                                 </Button>
                                             </DropdownMenuTrigger>
                                             <DropdownMenuContent align="end" className="rounded-2xl border-slate-100 p-2 min-w-[160px] shadow-xl">
+                                                <DropdownMenuItem className="text-slate-600 gap-3 cursor-pointer rounded-xl h-11" onClick={() => {
+                                                    setSelectedClassId(cls.id);
+                                                    setIsStudentModalOpen(true);
+                                                }}>
+                                                    <Users className="h-4 w-4" /> Students List
+                                                </DropdownMenuItem>
                                                 <DropdownMenuItem className="text-slate-600 gap-3 cursor-pointer rounded-xl h-11">
                                                     <Pencil className="h-4 w-4" /> Edit Class
                                                 </DropdownMenuItem>
@@ -296,21 +328,31 @@ export default function MyClassesPage() {
                                 </CardHeader>
                                 <CardContent className="space-y-4 pt-0">
                                     <div className="flex gap-2">
-                                        <Button variant="outline" className="flex-1 rounded-xl h-11 border-blue-200 text-blue-700 bg-blue-50/50 hover:bg-blue-100 gap-2">
+                                        <Button
+                                            variant="outline"
+                                            className="flex-1 rounded-xl h-11 border-blue-200 text-blue-700 bg-blue-50/50 hover:bg-blue-100 gap-2"
+                                            onClick={() => {
+                                                setSelectedClassId(cls.id);
+                                                setIsStudentModalOpen(true);
+                                            }}
+                                        >
                                             <Users className="h-4 w-4" /> Students
                                         </Button>
                                         <Button variant="outline" className="flex-1 rounded-xl h-11 border-emerald-200 text-emerald-700 bg-emerald-50/50 hover:bg-emerald-100 gap-2">
                                             <CheckCircle2 className="h-4 w-4" /> Attendance
-                                        </Button>
-                                        <Button variant="outline" className="flex-1 rounded-xl h-11 border-amber-200 text-amber-700 bg-amber-50/50 hover:bg-amber-100 gap-2">
-                                            <Award className="h-4 w-4" /> Marks
                                         </Button>
                                     </div>
                                     <div className="flex gap-2">
                                         <Button variant="outline" className="flex-1 rounded-xl h-11 border-amber-400/30 text-amber-600 hover:bg-amber-50 gap-2">
                                             <Pencil className="h-4 w-4" /> Edit
                                         </Button>
-                                        <Button variant="outline" className="flex-1 rounded-xl h-11 border-red-200 text-red-600 hover:bg-red-50 gap-2">
+                                        <Button
+                                            variant="outline"
+                                            className="flex-1 rounded-xl h-11 border-red-200 text-red-600 hover:bg-red-50 gap-2"
+                                            onClick={() => {
+                                                if (window.confirm("Are you sure?")) deleteClassMutation.mutate(cls.id);
+                                            }}
+                                        >
                                             <Trash2 className="h-4 w-4" /> Delete
                                         </Button>
                                     </div>
@@ -338,6 +380,75 @@ export default function MyClassesPage() {
                     </div>
                 </div>
             </main>
+
+            <Dialog open={isStudentModalOpen} onOpenChange={setIsStudentModalOpen}>
+                <DialogContent className="sm:max-w-[600px] rounded-3xl p-0 overflow-hidden">
+                    <div className="bg-[#4F46E5] p-6 text-white">
+                        <DialogTitle className="text-xl font-bold text-white">Add Students to Class</DialogTitle>
+                    </div>
+                    <div className="p-6 space-y-4">
+                        <div className="relative">
+                            <Input
+                                placeholder="Search completed students..."
+                                value={studentSearch}
+                                onChange={(e) => setStudentSearch(e.target.value)}
+                                className="pl-10"
+                            />
+                            <Search className="absolute left-3 top-3 h-4 w-4 text-slate-400" />
+                        </div>
+                        <ScrollArea className="h-[300px] border rounded-xl p-4">
+                            <div className="space-y-4">
+                                {completedLeads?.leads.map((student) => (
+                                    <div key={student.id} className="flex items-center space-x-3 p-2 hover:bg-slate-50 rounded-lg">
+                                        <Checkbox
+                                            id={`student-${student.id}`}
+                                            checked={selectedStudentIds.includes(student.id)}
+                                            onCheckedChange={(checked) => {
+                                                if (checked) {
+                                                    setSelectedStudentIds([...selectedStudentIds, student.id]);
+                                                } else {
+                                                    setSelectedStudentIds(selectedStudentIds.filter(id => id !== student.id));
+                                                }
+                                            }}
+                                        />
+                                        <label htmlFor={`student-${student.id}`} className="flex-1 cursor-pointer">
+                                            <p className="font-semibold text-slate-900">{student.name}</p>
+                                            <p className="text-sm text-slate-500">{student.email}</p>
+                                        </label>
+                                    </div>
+                                ))}
+                                {completedLeads?.leads.length === 0 && (
+                                    <p className="text-center text-slate-500 py-8">No completed students found</p>
+                                )}
+                            </div>
+                        </ScrollArea>
+                        <div className="flex justify-between items-center pt-4">
+                            <p className="text-sm text-slate-500">
+                                {selectedStudentIds.length} students selected
+                            </p>
+                            <div className="flex gap-3">
+                                <Button variant="outline" onClick={() => setIsStudentModalOpen(false)}>
+                                    Cancel
+                                </Button>
+                                <Button
+                                    disabled={selectedStudentIds.length === 0 || addStudentsMutation.isPending}
+                                    onClick={() => {
+                                        if (selectedClassId) {
+                                            addStudentsMutation.mutate({
+                                                classId: selectedClassId,
+                                                leadIds: selectedStudentIds
+                                            });
+                                        }
+                                    }}
+                                    className="bg-[#4F46E5] hover:bg-[#4338CA] text-white"
+                                >
+                                    {addStudentsMutation.isPending ? "Adding..." : "Add to Class"}
+                                </Button>
+                            </div>
+                        </div>
+                    </div>
+                </DialogContent>
+            </Dialog>
         </div>
     );
 }
