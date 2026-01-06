@@ -6,20 +6,22 @@ import { pool } from "./db";
 
 export function getSession() {
   const sessionTtl = 7 * 24 * 60 * 60 * 1000; // 1 week
+  const isProduction = process.env.NODE_ENV === 'production';
 
-  // Always use in-memory session store for local development with PGlite
-  // The connect-pg-simple package requires a real PostgreSQL connection
-  // which we don't have when using PGlite for data storage
-  console.log("Using in-memory session store (PGlite mode)");
+  // Use in-memory session store (suitable for single-instance deployments)
+  console.log(`Using in-memory session store (Production: ${isProduction})`);
   const sessionStore = new session.MemoryStore();
+
   return session({
     secret: process.env.SESSION_SECRET || "default_local_secret",
     store: sessionStore,
     resave: false,
     saveUninitialized: false,
+    proxy: isProduction, // Trust the first proxy (Render)
     cookie: {
       httpOnly: true,
-      secure: false, // Changed to false for local development
+      secure: isProduction, // Use secure cookies in production (HTTPS)
+      sameSite: isProduction ? 'none' : 'lax', // Required for cross-origin cookies
       maxAge: sessionTtl,
     },
   });

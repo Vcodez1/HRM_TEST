@@ -1,4 +1,4 @@
-# Updated: 2026-01-06 - Fixed classes table with foreign key constraint
+# Updated: 2026-01-06 - Fixed session configuration for production HTTPS
 services:
   - type: web
     name: HRM_TEST
@@ -11,3 +11,7 @@ services:
         value: production
       - key: GOOGLE_GEMINI_API_KEY
         sync: false  # Set this value manually in Render Dashboard for security
+      - key: SESSION_SECRET
+        sync: false  # Set a strong random secret in Render Dashboard
+      - key: DATABASE_URL
+        sync: false  # Set your Neon PostgreSQL connection string
