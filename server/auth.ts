@@ -55,35 +55,6 @@ export const isAuthenticated: RequestHandler = async (req, res, next) => {
 
   // Check for password-based session
   if (session?.user?.loginType === 'password') {
-    // Handle hardcoded manager login
-    if (session.user.id === 'hardcoded-manager-id') {
-      try {
-        const dbUser = await storage.getUserByEmail(session.user.email);
-        (req as any).user = {
-          claims: {
-            sub: dbUser ? dbUser.id : session.user.id,
-            email: session.user.email,
-          },
-          role: 'manager',
-          loginType: 'password'
-        };
-        console.log(`[Auth Success] Hardcoded Manager login - User ID: ${session.user.id}`);
-        return next();
-      } catch (error) {
-        // Fallback to static info if DB is busy or fails
-        (req as any).user = {
-          claims: {
-            sub: session.user.id,
-            email: session.user.email,
-          },
-          role: 'manager',
-          loginType: 'password'
-        };
-        console.log(`[Auth Success] Hardcoded Manager login (Fallback) - User ID: ${session.user.id}`);
-        return next();
-      }
-    }
-
     // Verify the user still exists and is active
     try {
       const dbUser = await storage.getUser(session.user.id);

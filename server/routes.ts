@@ -544,24 +544,31 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       // Hardcoded manager login
       if (email === 'vcodezmanager@gmail.com' && password === 'VCodezhrm@2025') {
+        // Fetch the actual manager user from database
+        const managerUser = await storage.getUserByEmail(email);
+
+        if (!managerUser) {
+          return res.status(500).json({ message: "Manager user not found in database" });
+        }
+
         (req as any).session.user = {
-          id: 'hardcoded-manager-id',
+          id: managerUser.id, // Use real database ID
           email: email,
           role: 'manager',
           loginType: 'password'
         };
 
-        console.log(`Hardcoded manager login successful for: ${email}`);
+        console.log(`Hardcoded manager login successful for: ${email} (DB ID: ${managerUser.id})`);
 
         return res.json({
           success: true,
           user: {
-            id: 'hardcoded-manager-id',
+            id: managerUser.id, // Use real database ID
             email: email,
-            firstName: 'VCodez',
-            lastName: 'Manager',
+            firstName: managerUser.firstName || 'VCodez',
+            lastName: managerUser.lastName || 'Manager',
             role: 'manager',
-            fullName: 'VCodez Manager'
+            fullName: managerUser.fullName || 'VCodez Manager'
           }
         });
       }
