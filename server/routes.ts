@@ -3565,5 +3565,98 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // ==================== CLASS MANAGEMENT API ENDPOINTS ====================
+
+  // Create a new class
+  app.post('/api/classes', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const user = await storage.getUser(userId);
+
+      // Allow admins and session organizers to create classes
+      if (!user || (user.role !== 'admin' && user.role !== 'session-coordinator' && user.role !== 'manager')) {
+        return res.status(403).json({ message: 'Only admins and session organizers can create classes' });
+      }
+
+      // Validate request body
+      const classData = insertClassSchema.parse({
+        ...req.body,
+        instructorId: userId, // Set instructor to current user
+      });
+
+      console.log('[POST /api/classes] Creating class:', classData);
+
+      const newClass = await storage.createClass(classData);
+
+      res.json(newClass);
+    } catch (error: any) {
+      console.error('[POST /api/classes] Error:', error);
+      res.status(500).json({ message: 'Failed to create class', error: error.message });
+    }
+  });
+
+  // Get all classes with student counts
+  app.get('/api/classes/with-counts', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const user = await storage.getUser(userId);
+
+      if (!user) {
+        return res.status(401).json({ message: 'User not found' });
+      }
+
+      // Get instructorId from query params or default to current user
+      const instructorId = (req.query.instructorId as string) || userId;
+
+      console.log('[GET /api/classes/with-counts] Fetching classes for instructor:', instructorId);
+
+      const classesWithCounts = await storage.getClassesWithStudentCount(instructorId);
+
+      res.json(classesWithCounts);
+    } catch (error: any) {
+      console.error('[GET /api/classes/with-counts] Error:', error);
+      res.status(500).json({ message: 'Failed to fetch classes', error: error.message });
+    }
+  });
+
+  // Delete a class
+  app.delete('/api/classes/:id', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const user = await storage.getUser(userId);
+
+      if (!user) {
+        return res.status(401).json({ message: 'User not found' });
+      }
+
+      const classId = parseInt(req.params.id);
+
+      if (isNaN(classId)) {
+        return res.status(400).json({ message: 'Invalid class ID' });
+      }
+
+      // Get the class to verify ownership
+      const classToDelete = await storage.getClass(classId);
+
+      if (!classToDelete) {
+        return res.status(404).json({ message: 'Class not found' });
+      }
+
+      // Only allow instructor or admin/manager to delete
+      if (classToDelete.instructorId !== userId && user.role !== 'admin' && user.role !== 'manager') {
+        return res.status(403).json({ message: 'You can only delete your own classes' });
+      }
+
+      console.log('[DELETE /api/classes/:id] Deleting class:', classId);
+
+      await storage.deleteClass(classId);
+
+      res.json({ message: 'Class deleted successfully' });
+    } catch (error: any) {
+      console.error('[DELETE /api/classes/:id] Error:', error);
+      res.status(500).json({ message: 'Failed to delete class', error: error.message });
+    }
+  });
+
   return httpServer;
 }
