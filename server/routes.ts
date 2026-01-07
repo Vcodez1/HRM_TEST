@@ -112,8 +112,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.post('/api/email-config', isAuthenticated, async (req: any, res) => {
     try {
-      if (req.user.role !== 'admin' && req.user.role !== 'manager') {
-        return res.status(403).json({ message: "Only admins and managers can update email configuration" });
+      if (req.user.role !== 'admin' && req.user.role !== 'manager' && req.user.role !== 'tech-support') {
+        return res.status(403).json({ message: "Only admins, managers, and tech-support can update email configuration" });
       }
       const config = await storage.updateEmailConfig(req.body);
       res.json(config);
