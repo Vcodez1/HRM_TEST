@@ -509,6 +509,56 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Get leads with "ready_for_class" status for adding to classes
+  app.get('/api/leads/ready-for-class', isAuthenticated, async (req: any, res) => {
+    try {
+      const search = req.query.search as string | undefined;
+      const classId = req.query.classId as string | undefined;
+
+      // Get leads with ready_for_class status
+      const result = await storage.searchLeads({
+        statuses: ['ready_for_class'],
+        search: search,
+        page: 1,
+        limit: 100
+      });
+
+      // If classId is provided, filter out students already in the class
+      let availableLeads = result.leads;
+      if (classId) {
+        const existingStudents = await storage.getClassStudents(parseInt(classId));
+        const existingIds = new Set(existingStudents.map((s: any) => s.id));
+        availableLeads = result.leads.filter((lead: any) => !existingIds.has(lead.id));
+      }
+
+      res.json({ leads: availableLeads, total: availableLeads.length });
+    } catch (error: any) {
+      console.error("Error fetching ready-for-class leads:", error);
+      res.status(500).json({ message: "Failed to fetch ready-for-class leads" });
+    }
+  });
+
+  // Get leads by category for HR users
+  app.get('/api/leads/by-category', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const currentUser = await storage.getUser(userId);
+      const userRole = currentUser?.role || 'hr';
+
+      if (userRole !== 'hr') {
+        return res.status(403).json({ message: "Only HR users can access this endpoint" });
+      }
+
+      const { category = 'Client Hiring' } = req.query;
+
+      const leads = await storage.getLeadsByCategory(category as string);
+      res.json({ leads });
+    } catch (error) {
+      console.error("Error fetching leads by category:", error);
+      res.status(500).json({ message: "Failed to fetch leads by category" });
+    }
+  });
+
   // Lead details
   app.get('/api/leads/:id', isAuthenticated, async (req: any, res) => {
     try {
@@ -1038,34 +1088,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
 
 
-  // Get leads with "ready_for_class" status for adding to classes
-  app.get('/api/leads/ready-for-class', isAuthenticated, async (req: any, res) => {
-    try {
-      const search = req.query.search as string | undefined;
-      const classId = req.query.classId as string | undefined;
 
-      // Get leads with ready_for_class status
-      const result = await storage.searchLeads({
-        statuses: ['ready_for_class'],
-        search: search,
-        page: 1,
-        limit: 100
-      });
-
-      // If classId is provided, filter out students already in the class
-      let availableLeads = result.leads;
-      if (classId) {
-        const existingStudents = await storage.getClassStudents(parseInt(classId));
-        const existingIds = new Set(existingStudents.map((s: any) => s.id));
-        availableLeads = result.leads.filter((lead: any) => !existingIds.has(lead.id));
-      }
-
-      res.json({ leads: availableLeads, total: availableLeads.length });
-    } catch (error: any) {
-      console.error("Error fetching ready-for-class leads:", error);
-      res.status(500).json({ message: "Failed to fetch ready-for-class leads" });
-    }
-  });
 
   // Get classes assigned to current user as mentor (for tech-support sidebar)
   app.get('/api/classes/my-mentor', isAuthenticated, async (req: any, res) => {
@@ -1818,25 +1841,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Get leads by category for HR users
-  app.get('/api/leads/by-category', isAuthenticated, async (req: any, res) => {
-    try {
-      const userId = req.user.claims.sub;
-      const currentUser = await storage.getUser(userId);
-      const userRole = currentUser?.role || 'hr';
 
-      if (userRole !== 'hr') {
-        return res.status(403).json({ message: "Only HR users can access this endpoint" });
-      }
-
-      const { category = 'Client Hiring' } = req.query;
-
-      const leads = await storage.getLeadsByCategory(category as string);
-      res.json({ leads });
-    } catch (error) {
-      console.error("Error fetching leads by category:", error);
-      res.status(500).json({ message: "Failed to fetch leads by category" });
-    }
-  });
 
   // Get team lead info for HR users
   app.get('/api/my/team-lead', isAuthenticated, async (req: any, res) => {
