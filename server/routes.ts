@@ -4210,5 +4210,71 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Update student mapping (ID, joinedAt)
+  app.patch('/api/classes/:classId/students/:leadId/mapping', isAuthenticated, async (req: any, res) => {
+    try {
+      const classId = parseInt(req.params.classId);
+      const leadId = parseInt(req.params.leadId);
+      const { studentId, joinedAt } = req.body;
+
+      await storage.updateStudentMapping(classId, leadId, { studentId, joinedAt });
+      res.json({ message: 'Student mapping updated successfully' });
+    } catch (error: any) {
+      console.error('[PATCH /api/classes/:classId/students/:leadId/mapping] Error:', error);
+      res.status(500).json({ message: 'Failed to update student mapping', error: error.message });
+    }
+  });
+
+  // Get all allocated students
+  app.get('/api/students/allocated', isAuthenticated, async (req: any, res) => {
+    try {
+      const students = await storage.getAllAllocatedStudents();
+      res.json(students);
+    } catch (error: any) {
+      console.error('[GET /api/students/allocated] Error:', error);
+      res.status(500).json({ message: 'Failed to fetch allocated students', error: error.message });
+    }
+  });
+
+  // Get all allocated students count
+  app.get('/api/students/allocated/count', isAuthenticated, async (req: any, res) => {
+    try {
+      const count = await storage.getAllAllocatedStudentsCount();
+      res.json({ count });
+    } catch (error: any) {
+      console.error('[GET /api/students/allocated/count] Error:', error);
+      res.status(500).json({ message: 'Failed to fetch allocated students count', error: error.message });
+    }
+  });
+
+  // Get all classes
+  app.get('/api/all-classes', isAuthenticated, async (req: any, res) => {
+    try {
+      const classes = await storage.getAllClasses();
+      res.json(classes);
+    } catch (error: any) {
+      console.error('[GET /api/all-classes] Error:', error);
+      res.status(500).json({ message: 'Failed to fetch all classes', error: error.message });
+    }
+  });
+
+  // Re-assign student to a new class
+  app.patch('/api/students/:leadId/reassign', isAuthenticated, async (req: any, res) => {
+    try {
+      const leadId = parseInt(req.params.leadId);
+      const { oldClassId, newClassId } = req.body;
+
+      if (!oldClassId || !newClassId) {
+        return res.status(400).json({ message: 'oldClassId and newClassId are required' });
+      }
+
+      await storage.reassignStudent(leadId, parseInt(oldClassId), parseInt(newClassId));
+      res.json({ message: 'Student re-assigned successfully' });
+    } catch (error: any) {
+      console.error('[PATCH /api/students/:leadId/reassign] Error:', error);
+      res.status(500).json({ message: 'Failed to re-assign student', error: error.message });
+    }
+  });
+
   return httpServer;
 }

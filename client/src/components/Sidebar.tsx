@@ -172,6 +172,18 @@ export default function Sidebar() {
     retry: false,
   });
 
+  // Fetch allocated students count
+  const { data: allocatedCountData } = useQuery({
+    queryKey: ["/api/students/allocated/count"],
+    queryFn: async () => {
+      const response = await fetch("/api/students/allocated/count");
+      if (!response.ok) return { count: 0 };
+      return response.json();
+    },
+    enabled: hasManagerPermissions((user as any)?.role) || (user as any)?.role === 'admin' || (user as any)?.role === 'session-coordinator',
+    retry: false,
+  });
+
   const handleLogout = () => {
     window.location.href = "/api/logout";
   };
@@ -205,6 +217,14 @@ export default function Sidebar() {
       current: location === "/classes",
       roleRequired: ["session_organizer", "admin", "tech-support"],
       subRoleRequired: undefined,
+    },
+    {
+      name: "Allocated Students",
+      href: "/allocated-students",
+      icon: UserCheck,
+      current: location === "/allocated-students",
+      roleRequired: ["admin", "session-coordinator"],
+      count: (allocatedCountData as any)?.count
     },
     {
       name: "User Management",
@@ -411,7 +431,12 @@ export default function Sidebar() {
               data-testid={`nav-${item.name.toLowerCase().replace(/\s+/g, '-')}`}
             >
               <item.icon className="w-5 h-5 mr-3" />
-              {item.name}
+              <span className="flex-1">{item.name}</span>
+              {item.count !== undefined && item.count > 0 && (
+                <Badge variant="secondary" className="ml-2 text-xs">
+                  {item.count}
+                </Badge>
+              )}
             </Link>
           );
         })}

@@ -167,6 +167,11 @@ export interface IStorage {
   getClassStudents(classId: number): Promise<Lead[]>;
   getClassStudentMappings(classId: number): Promise<ClassStudent[]>;
   updateStudentId(classId: number, leadId: number, studentId: string): Promise<void>;
+  updateStudentMapping(classId: number, leadId: number, updates: { studentId?: string; joinedAt?: string }): Promise<void>;
+  getAllAllocatedStudents(): Promise<any[]>;
+  reassignStudent(leadId: number, oldClassId: number, newClassId: number): Promise<void>;
+  getAllClasses(): Promise<Class[]>;
+  getAllAllocatedStudentsCount(): Promise<number>;
 
   // Attendance operations
   markAttendance(attendanceData: InsertAttendance): Promise<Attendance>;
@@ -1514,6 +1519,55 @@ c.*,
       .update(classStudents)
       .set({ studentId })
       .where(and(eq(classStudents.classId, classId), eq(classStudents.leadId, leadId)));
+  }
+
+  async updateStudentMapping(classId: number, leadId: number, updates: { studentId?: string; joinedAt?: string }): Promise<void> {
+    const setValues: any = {};
+    if (updates.studentId !== undefined) setValues.studentId = updates.studentId;
+    if (updates.joinedAt !== undefined) {
+      setValues.joinedAt = updates.joinedAt ? new Date(updates.joinedAt) : null;
+    }
+
+    await db
+      .update(classStudents)
+      .set(setValues)
+      .where(and(eq(classStudents.classId, classId), eq(classStudents.leadId, leadId)));
+  }
+
+  async getAllAllocatedStudents(): Promise<any[]> {
+    return await db
+      .select({
+        id: leads.id,
+        name: leads.name,
+        email: leads.email,
+        phone: leads.phone,
+        category: leads.category,
+        studentId: classStudents.studentId,
+        joinedAt: classStudents.joinedAt,
+        classId: classes.id,
+        className: classes.name,
+        subject: classes.subject,
+        mentorEmail: classes.mentorEmail
+      })
+      .from(classStudents)
+      .innerJoin(leads, eq(classStudents.leadId, leads.id))
+      .innerJoin(classes, eq(classStudents.classId, classes.id));
+  }
+
+  async reassignStudent(leadId: number, oldClassId: number, newClassId: number): Promise<void> {
+    await db
+      .update(classStudents)
+      .set({ classId: newClassId })
+      .where(and(eq(classStudents.leadId, leadId), eq(classStudents.classId, oldClassId)));
+  }
+
+  async getAllClasses(): Promise<Class[]> {
+    return await db.select().from(classes);
+  }
+
+  async getAllAllocatedStudentsCount(): Promise<number> {
+    const [result] = await db.select({ count: count() }).from(classStudents);
+    return Number(result.count) || 0;
   }
 
   async markAttendance(attendanceData: InsertAttendance): Promise<Attendance> {
