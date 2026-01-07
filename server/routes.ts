@@ -3954,6 +3954,24 @@ export async function registerRoutes(app: Express): Promise<Server> {
             }
             // Re-fetch mappings after auto-enrollment
             mappings = await storage.getClassStudentMappings(classId);
+
+            // Auto-generate student IDs after enrollment
+            if (mappings.length > 0) {
+              const subject = cls.subject || cls.name || 'Student';
+              // Sort mappings by joinedAt to provide sequential IDs
+              const sortedMappings = mappings.sort((a, b) =>
+                new Date(a.joinedAt!).getTime() - new Date(b.joinedAt!).getTime()
+              );
+
+              for (let i = 0; i < sortedMappings.length; i++) {
+                const studentId = `${subject}-${(i + 1).toString().padStart(2, '0')}`;
+                await storage.updateStudentId(classId, sortedMappings[i].leadId, studentId);
+              }
+
+              // Re-fetch mappings after ID generation
+              mappings = await storage.getClassStudentMappings(classId);
+              console.log(`[student-mappings] Auto-generated IDs for ${mappings.length} students`);
+            }
           }
         }
       }
