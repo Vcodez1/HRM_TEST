@@ -86,7 +86,13 @@ export default function MyClassesPage() {
 
     const createClassMutation = useMutation({
         mutationFn: async (data: InsertClass) => {
+            console.log("Sending class creation request:", data);
             const response = await apiRequest("POST", "/api/classes", data);
+            if (!response.ok) {
+                const errorData = await response.json();
+                console.error("Class creation failed:", errorData);
+                throw new Error(errorData.message || "Failed to create class");
+            }
             return response.json();
         },
         onSuccess: () => {
@@ -99,13 +105,15 @@ export default function MyClassesPage() {
             form.reset();
         },
         onError: (error: Error) => {
+            console.error("Class creation mutation error:", error);
             toast({
                 variant: "destructive",
                 title: "Error",
-                description: error.message,
+                description: error.message || "Failed to create class. Please try again.",
             });
         },
     });
+
 
     const deleteClassMutation = useMutation({
         mutationFn: async (id: number) => {

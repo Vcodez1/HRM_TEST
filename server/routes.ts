@@ -1063,33 +1063,50 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+
   app.post("/api/classes", isAuthenticated, async (req: any, res) => {
     try {
       console.log('[/api/classes POST] Request received:', JSON.stringify(req.body));
+      console.log('[/api/classes POST] User:', req.user.claims.sub, 'Role:', req.user.role);
 
       const instructorId = req.user.claims.sub;
+
+      // Sanitize empty strings to null for optional fields
+      const sanitizedBody = {
+        name: req.body.name,
+        subject: req.body.subject || null,
+        mentorEmail: req.body.mentorEmail || null,
+        mode: req.body.mode || null,
+      };
+
       const classData = {
-        ...req.body,
+        ...sanitizedBody,
         instructorId: instructorId // Force current user as instructor
       };
 
-      console.log('[/api/classes POST] Data with instructor:', JSON.stringify(classData));
+      console.log('[/api/classes POST] Sanitized data with instructor:', JSON.stringify(classData));
 
       const parsed = insertClassSchema.safeParse(classData);
       if (!parsed.success) {
         console.error('[/api/classes POST] Validation failed:', JSON.stringify(parsed.error.errors));
-        return res.status(400).json({ message: "Invalid class data", errors: parsed.error.errors });
+        return res.status(400).json({
+          message: "Invalid class data",
+          errors: parsed.error.errors,
+          receivedData: classData
+        });
       }
 
-      console.log('[/api/classes POST] Calling storage.createClass');
+      console.log('[/api/classes POST] Validation passed, calling storage.createClass');
       const newClass = await storage.createClass(parsed.data);
       console.log('[/api/classes POST] Class created successfully:', newClass.id);
       res.status(201).json(newClass);
     } catch (error: any) {
       console.error('[/api/classes POST] Error:', error);
+      console.error('[/api/classes POST] Error stack:', error.stack);
       res.status(500).json({ message: "Error creating class", error: error.message });
     }
   });
+
 
   app.put("/api/classes/:id", isAuthenticated, async (req: any, res) => {
     try {

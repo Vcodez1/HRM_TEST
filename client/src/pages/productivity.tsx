@@ -72,6 +72,7 @@ type IdleWarning = {
   warningLabel: string;
   createdAt: string;
   metadata: any;
+  urlDetails?: string;
 };
 
 const COLORS = ['#ef4444', '#f97316', '#eab308', '#22c55e'];
@@ -470,8 +471,8 @@ export default function Productivity() {
                             <TableCell className="text-center">
                               <div className="flex items-center justify-center">
                                 <span className={`text-lg font-bold ${team.completionRate >= 80 ? 'text-green-600' :
-                                    team.completionRate >= 50 ? 'text-yellow-600' :
-                                      'text-red-600'
+                                  team.completionRate >= 50 ? 'text-yellow-600' :
+                                    'text-red-600'
                                   }`}>
                                   {team.completionRate}%
                                 </span>
@@ -801,7 +802,7 @@ export default function Productivity() {
                                       day: 'numeric'
                                     })}
                                   </span>
-                                  <Badge variant="secondary">{count} schedule{count !== 1 ? 's' : ''}</Badge>
+                                  <Badge variant="secondary">{count as number} schedule{(count as number) !== 1 ? 's' : ''}</Badge>
                                 </div>
                               ))}
                           </div>
@@ -823,8 +824,8 @@ export default function Productivity() {
                     <div className="border rounded p-3">
                       <p className="text-sm text-muted-foreground">Completion Rate</p>
                       <p className={`text-2xl font-bold ${selectedTeam.completionRate >= 80 ? 'text-green-600' :
-                          selectedTeam.completionRate >= 50 ? 'text-yellow-600' :
-                            'text-red-600'
+                        selectedTeam.completionRate >= 50 ? 'text-yellow-600' :
+                          'text-red-600'
                         }`}>
                         {selectedTeam.completionRate}%
                       </p>
