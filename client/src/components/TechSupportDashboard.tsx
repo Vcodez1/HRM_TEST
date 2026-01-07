@@ -15,6 +15,8 @@ import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { format } from "date-fns";
 import { Link } from "wouter";
+import { KathaipomFeed } from "@/components/KathaipomFeed";
+import { MessageSquare as MessageSquareIcon } from "lucide-react";
 
 interface TechSupportMetrics {
     totalClasses: number;
@@ -98,34 +100,45 @@ export default function TechSupportDashboard({ userDisplayName }: { userDisplayN
                 <div className="grid grid-cols-2 lg:grid-cols-4 gap-6">
                     <Link href="/classes">
                         <div className="group cursor-pointer">
-                            <div className="aspect-square flex flex-col items-center justify-center border-2 border-blue-400 bg-blue-50/50 dark:bg-blue-900/10 rounded-2xl p-6 transition-all group-hover:bg-blue-100 dark:group-hover:bg-blue-900/20 group-hover:shadow-lg">
-                                <BookMarked className="h-10 w-10 text-blue-500 mb-3" />
-                                <span className="text-blue-600 dark:text-blue-400 font-bold uppercase text-xs tracking-widest text-center">Manage Classes</span>
+                            <div className="h-28 flex flex-col items-center justify-center border-2 border-blue-400 bg-blue-50/50 dark:bg-blue-900/10 rounded-2xl p-4 transition-all group-hover:bg-blue-100 dark:group-hover:bg-blue-900/20 group-hover:shadow-lg">
+                                <BookMarked className="h-8 w-8 text-blue-500 mb-2" />
+                                <span className="text-blue-600 dark:text-blue-400 font-bold uppercase text-[10px] tracking-widest text-center">Manage Classes</span>
                             </div>
                         </div>
                     </Link>
 
                     <div className="group cursor-pointer">
-                        <div className="aspect-square flex flex-col items-center justify-center border-2 border-cyan-400 bg-cyan-50/50 dark:bg-cyan-900/10 rounded-2xl p-6 transition-all group-hover:bg-cyan-100 dark:group-hover:bg-cyan-900/20 group-hover:shadow-lg">
-                            <History className="h-10 w-10 text-cyan-500 mb-3" />
-                            <span className="text-cyan-600 dark:text-cyan-400 font-bold uppercase text-xs tracking-widest text-center">View History</span>
+                        <div className="h-28 flex flex-col items-center justify-center border-2 border-cyan-400 bg-cyan-50/50 dark:bg-cyan-900/10 rounded-2xl p-4 transition-all group-hover:bg-cyan-100 dark:group-hover:bg-cyan-900/20 group-hover:shadow-lg">
+                            <History className="h-8 w-8 text-cyan-500 mb-2" />
+                            <span className="text-cyan-600 dark:text-cyan-400 font-bold uppercase text-[10px] tracking-widest text-center">View History</span>
                         </div>
                     </div>
 
                     <div className="group cursor-pointer">
-                        <div className="aspect-square flex flex-col items-center justify-center border-2 border-green-400 bg-green-50/50 dark:bg-green-900/10 rounded-2xl p-6 transition-all group-hover:bg-green-100 dark:group-hover:bg-green-900/20 group-hover:shadow-lg">
-                            <Download className="h-10 w-10 text-green-500 mb-3" />
-                            <span className="text-green-600 dark:text-green-400 font-bold uppercase text-xs tracking-widest text-center">Export Data</span>
+                        <div className="h-28 flex flex-col items-center justify-center border-2 border-green-400 bg-green-50/50 dark:bg-green-900/10 rounded-2xl p-4 transition-all group-hover:bg-green-100 dark:group-hover:bg-green-900/20 group-hover:shadow-lg">
+                            <Download className="h-8 w-8 text-green-500 mb-2" />
+                            <span className="text-green-600 dark:text-green-400 font-bold uppercase text-[10px] tracking-widest text-center">Export Data</span>
                         </div>
                     </div>
 
                     <div className="group cursor-not-allowed opacity-60">
-                        <div className="aspect-square flex flex-col items-center justify-center border-2 border-yellow-400 bg-yellow-50/50 dark:bg-yellow-900/10 rounded-2xl p-6">
-                            <Bell className="h-10 w-10 text-yellow-500 mb-3" />
-                            <span className="text-yellow-600 dark:text-yellow-400 font-bold uppercase text-xs tracking-widest text-center">Notify Students</span>
+                        <div className="h-28 flex flex-col items-center justify-center border-2 border-yellow-400 bg-yellow-50/50 dark:bg-yellow-900/10 rounded-2xl p-4">
+                            <Bell className="h-8 w-8 text-yellow-500 mb-2" />
+                            <span className="text-yellow-600 dark:text-yellow-400 font-bold uppercase text-[10px] tracking-widest text-center">Notify Students</span>
                         </div>
                     </div>
                 </div>
+            </div>
+
+            {/* Kathaipom Feed Section */}
+            <div className="space-y-4">
+                <div className="flex items-center gap-2">
+                    <MessageSquareIcon className="w-5 h-5 text-indigo-500" />
+                    <h2 className="text-xl font-bold text-slate-800 dark:text-slate-200">Team Feed (Kathaipom)</h2>
+                </div>
+                <Card className="border-none shadow-xl bg-white/80 dark:bg-slate-900/80 backdrop-blur-sm overflow-hidden rounded-2xl ring-1 ring-slate-100 dark:ring-slate-800 h-[400px]">
+                    <KathaipomFeed />
+                </Card>
             </div>
 
             {/* Recent Records Table */}
@@ -162,8 +175,8 @@ export default function TechSupportDashboard({ userDisplayName }: { userDisplayN
                                         </td>
                                         <td className="px-6 py-4">
                                             <span className={`px-3 py-1 rounded-md text-[10px] font-bold uppercase tracking-wider ${record.status === 'Present'
-                                                    ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400'
-                                                    : 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400'
+                                                ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400'
+                                                : 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400'
                                                 }`}>
                                                 {record.status}
                                             </span>

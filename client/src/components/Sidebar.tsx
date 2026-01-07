@@ -188,6 +188,7 @@ export default function Sidebar() {
       href: (user as any)?.role === 'accounts' || (user as any)?.role === 'session_organizer' || isSessOrg ? "/my-leads" : "/leads",
       icon: Users,
       current: (user as any)?.role === 'accounts' || (user as any)?.role === 'session_organizer' || isSessOrg ? location === "/my-leads" : location === "/leads",
+      roleRequired: ["admin", "manager", "hr", "accounts", "session_organizer", "team_lead", "session-coordinator"],
     },
     {
       name: "My Sessions",
@@ -230,7 +231,7 @@ export default function Sidebar() {
       href: "/kathaipom",
       icon: MessageSquare,
       current: location === "/kathaipom",
-      roleRequired: "manager",
+      roleRequired: ["manager", "tech-support"],
     },
     {
       name: "Tally",
