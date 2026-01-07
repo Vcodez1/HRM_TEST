@@ -189,8 +189,8 @@ export default function Sidebar() {
       href: "/classes",
       icon: BookOpen,
       current: location === "/classes",
-      roleRequired: ["session_organizer", "admin"],
-      subRoleRequired: "session_organizer",
+      roleRequired: ["session_organizer", "admin", "tech-support"],
+      subRoleRequired: undefined, // Allow tech-support to see without sub-role requirement
     },
     {
       name: "User Management",

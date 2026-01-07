@@ -1018,9 +1018,76 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Get all tech-support users for mentor dropdown
+  app.get('/api/users/tech-support', isAuthenticated, async (req: any, res) => {
+    try {
+      const techSupportUsers = await storage.getUsersByRole('tech-support');
+      // Return only essential info for the dropdown
+      const users = techSupportUsers.map((u: any) => ({
+        id: u.id,
+        email: u.email,
+        fullName: u.fullName || `${u.firstName || ''} ${u.lastName || ''}`.trim() || u.email
+      }));
+      res.json(users);
+    } catch (error: any) {
+      console.error("Error fetching tech-support users:", error);
+      res.status(500).json({ message: "Failed to fetch tech-support users" });
+    }
+  });
+
+  // Get leads with "ready_for_class" status for adding to classes
+  app.get('/api/leads/ready-for-class', isAuthenticated, async (req: any, res) => {
+    try {
+      const search = req.query.search as string | undefined;
+      const classId = req.query.classId as string | undefined;
+
+      // Get leads with ready_for_class status
+      const result = await storage.searchLeads({
+        statuses: ['ready_for_class'],
+        search: search,
+        page: 1,
+        limit: 100
+      });
+
+      // If classId is provided, filter out students already in the class
+      let availableLeads = result.leads;
+      if (classId) {
+        const existingStudents = await storage.getClassStudents(parseInt(classId));
+        const existingIds = new Set(existingStudents.map((s: any) => s.id));
+        availableLeads = result.leads.filter((lead: any) => !existingIds.has(lead.id));
+      }
+
+      res.json({ leads: availableLeads, total: availableLeads.length });
+    } catch (error: any) {
+      console.error("Error fetching ready-for-class leads:", error);
+      res.status(500).json({ message: "Failed to fetch ready-for-class leads" });
+    }
+  });
+
+  // Get classes assigned to current user as mentor (for tech-support sidebar)
+  app.get('/api/classes/my-mentor', isAuthenticated, async (req: any, res) => {
+    try {
+      const userEmail = req.user.claims.email;
+      console.log(`[GET /api/classes/my-mentor] User email: ${userEmail}`);
+
+      // Get all classes and filter by mentor email
+      const allClasses = await storage.getClassesWithStudentCount();
+      const myClasses = allClasses.filter((cls: any) =>
+        cls.mentorEmail && cls.mentorEmail.toLowerCase() === userEmail.toLowerCase()
+      );
+
+      console.log(`[GET /api/classes/my-mentor] Found ${myClasses.length} classes for mentor ${userEmail}`);
+      res.json(myClasses);
+    } catch (error: any) {
+      console.error("Error fetching mentor classes:", error);
+      res.status(500).json({ message: "Failed to fetch mentor classes" });
+    }
+  });
+
 
   // Class Management Endpoints
   app.get("/api/classes", isAuthenticated, async (req: any, res) => {
+
     try {
       const instructorId = req.query.instructorId as string | undefined;
       const classList = await storage.getClasses(instructorId);
@@ -1139,13 +1206,32 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post("/api/classes/:id/students", isAuthenticated, async (req: any, res) => {
     try {
       const classId = parseInt(req.params.id);
-      const { leadId } = req.body;
-      const mapping = await storage.addStudentToClass(classId, leadId);
-      res.status(201).json(mapping);
+      const { leadId, leadIds } = req.body;
+
+      // Support bulk add with leadIds array, or single add with leadId
+      const idsToAdd = leadIds || (leadId ? [leadId] : []);
+
+      if (idsToAdd.length === 0) {
+        return res.status(400).json({ message: "No lead IDs provided" });
+      }
+
+      const results = [];
+      for (const id of idsToAdd) {
+        try {
+          const mapping = await storage.addStudentToClass(classId, id);
+          results.push(mapping);
+        } catch (err: any) {
+          console.error(`Error adding lead ${id} to class ${classId}:`, err.message);
+          // Continue with other leads even if one fails
+        }
+      }
+
+      res.status(201).json({ added: results.length, mappings: results });
     } catch (error: any) {
       res.status(500).json({ message: "Error adding student to class", error: error.message });
     }
   });
+
 
   app.delete("/api/classes/:classId/students/:leadId", isAuthenticated, async (req: any, res) => {
     try {

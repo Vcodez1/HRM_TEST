@@ -40,21 +40,40 @@ export default function MyClassesPage() {
     const [isStudentModalOpen, setIsStudentModalOpen] = useState(false);
     const [selectedStudentIds, setSelectedStudentIds] = useState<number[]>([]);
     const [studentSearch, setStudentSearch] = useState("");
+    // Determine if user is tech-support to show only mentor classes
+    const isTechSupport = (user as any)?.role === 'tech-support';
 
     const { data: classesList, isLoading } = useQuery<ClassWithCount[]>({
-        queryKey: ["/api/classes/with-counts", { instructorId: user?.id }],
+        queryKey: [isTechSupport ? "/api/classes/my-mentor" : "/api/classes/with-counts", { instructorId: user?.id }],
+        queryFn: async () => {
+            const endpoint = isTechSupport ? "/api/classes/my-mentor" : "/api/classes/with-counts";
+            const res = await apiRequest("GET", endpoint);
+            return res.json();
+        },
         enabled: !!user,
     });
 
-    const { data: completedLeads } = useQuery<{ leads: Lead[] }>({
-        queryKey: ["/api/my/completed", studentSearch],
+    // Fetch tech-support users for mentor dropdown
+    const { data: techSupportUsers } = useQuery<{ id: string; email: string; fullName: string }[]>({
+        queryKey: ["/api/users/tech-support"],
+        queryFn: async () => {
+            const res = await apiRequest("GET", "/api/users/tech-support");
+            return res.json();
+        },
+        enabled: isCreateModalOpen,
+    });
+
+    // Fetch ready-for-class leads for adding to classes
+    const { data: readyForClassLeads } = useQuery<{ leads: Lead[] }>({
+        queryKey: ["/api/leads/ready-for-class", studentSearch, selectedClassId],
         queryFn: async () => {
             const params = new URLSearchParams();
             if (studentSearch) params.append("search", studentSearch);
-            const res = await apiRequest("GET", `/api/my/completed?${params}`);
+            if (selectedClassId) params.append("classId", selectedClassId.toString());
+            const res = await apiRequest("GET", `/api/leads/ready-for-class?${params}`);
             return res.json();
         },
-        enabled: isStudentModalOpen,
+        enabled: isStudentModalOpen && !!selectedClassId,
     });
 
     const form = useForm<ClassFormValues>({
@@ -171,113 +190,123 @@ export default function MyClassesPage() {
                                 My Classes
                             </h1>
                         </div>
-                        <Dialog open={isCreateModalOpen} onOpenChange={setIsCreateModalOpen}>
-                            <DialogTrigger asChild>
-                                <Button className="bg-[#4F46E5] hover:bg-[#4338CA] text-white gap-2 h-11 px-8 rounded-xl shadow-lg shadow-indigo-100 transition-all active:scale-95">
-                                    <Plus className="h-5 w-5" />
-                                    Add Class
-                                </Button>
-                            </DialogTrigger>
-                            <DialogContent className="sm:max-w-[425px] rounded-3xl p-0 overflow-hidden border-none shadow-2xl">
-                                <div className="bg-[#4F46E5] p-6 text-white flex items-center gap-3">
-                                    <Plus className="h-6 w-6" />
-                                    <DialogTitle className="text-xl font-bold text-white">Add New Class</DialogTitle>
-                                </div>
-                                <Form {...form}>
-                                    <form onSubmit={form.handleSubmit(onSubmit)} className="p-8 space-y-6">
-                                        <FormField
-                                            control={form.control}
-                                            name="name"
-                                            render={({ field }) => (
-                                                <FormItem>
-                                                    <FormLabel className="text-slate-600 font-semibold">Class Name</FormLabel>
-                                                    <FormControl>
-                                                        <Input placeholder="e.g., Computer Science 101" {...field} className="rounded-xl h-12 border-slate-200 focus:border-indigo-500 focus:ring-indigo-500" />
-                                                    </FormControl>
-                                                    <FormMessage />
-                                                </FormItem>
-                                            )}
-                                        />
-                                        <FormField
-                                            control={form.control}
-                                            name="subject"
-                                            render={({ field }) => (
-                                                <FormItem>
-                                                    <FormLabel className="text-slate-600 font-semibold">Subject</FormLabel>
-                                                    <FormControl>
-                                                        <Input
-                                                            placeholder="e.g., Computer Science"
-                                                            {...field}
-                                                            className="rounded-xl h-12 border-slate-200 focus:border-indigo-500 focus:ring-indigo-500"
-                                                            value={field.value || ""}
-                                                        />
-                                                    </FormControl>
-                                                    <FormMessage />
-                                                </FormItem>
-                                            )}
-                                        />
-                                        <FormField
-                                            control={form.control}
-                                            name="mentorEmail"
-                                            render={({ field }) => (
-                                                <FormItem>
-                                                    <FormLabel className="text-slate-600 font-semibold">Mentor Email</FormLabel>
-                                                    <FormControl>
-                                                        <Input
-                                                            type="email"
-                                                            placeholder="e.g., mentor@example.com"
-                                                            {...field}
-                                                            className="rounded-xl h-12 border-slate-200 focus:border-indigo-500 focus:ring-indigo-500"
-                                                            value={field.value || ""}
-                                                        />
-                                                    </FormControl>
-                                                    <FormMessage />
-                                                </FormItem>
-                                            )}
-                                        />
-                                        <FormField
-                                            control={form.control}
-                                            name="mode"
-                                            render={({ field }) => (
-                                                <FormItem>
-                                                    <FormLabel className="text-slate-600 font-semibold">Mode</FormLabel>
-                                                    <Select onValueChange={field.onChange} value={field.value || ""}>
+                        {!isTechSupport && (
+                            <Dialog open={isCreateModalOpen} onOpenChange={setIsCreateModalOpen}>
+                                <DialogTrigger asChild>
+                                    <Button className="bg-[#4F46E5] hover:bg-[#4338CA] text-white gap-2 h-11 px-8 rounded-xl shadow-lg shadow-indigo-100 transition-all active:scale-95">
+                                        <Plus className="h-5 w-5" />
+                                        Add Class
+                                    </Button>
+                                </DialogTrigger>
+                                <DialogContent className="sm:max-w-[425px] rounded-3xl p-0 overflow-hidden border-none shadow-2xl">
+                                    <div className="bg-[#4F46E5] p-6 text-white flex items-center gap-3">
+                                        <Plus className="h-6 w-6" />
+                                        <DialogTitle className="text-xl font-bold text-white">Add New Class</DialogTitle>
+                                    </div>
+                                    <Form {...form}>
+                                        <form onSubmit={form.handleSubmit(onSubmit)} className="p-8 space-y-6">
+                                            <FormField
+                                                control={form.control}
+                                                name="name"
+                                                render={({ field }) => (
+                                                    <FormItem>
+                                                        <FormLabel className="text-slate-600 font-semibold">Class Name</FormLabel>
                                                         <FormControl>
-                                                            <SelectTrigger className="rounded-xl h-12 border-slate-200 focus:border-indigo-500 focus:ring-indigo-500">
-                                                                <SelectValue placeholder="Select class mode" />
-                                                            </SelectTrigger>
+                                                            <Input placeholder="e.g., Computer Science 101" {...field} className="rounded-xl h-12 border-slate-200 focus:border-indigo-500 focus:ring-indigo-500" />
                                                         </FormControl>
-                                                        <SelectContent>
-                                                            <SelectItem value="online">Online</SelectItem>
-                                                            <SelectItem value="offline">Offline</SelectItem>
-                                                            <SelectItem value="hybrid">Hybrid</SelectItem>
-                                                        </SelectContent>
-                                                    </Select>
-                                                    <FormMessage />
-                                                </FormItem>
-                                            )}
-                                        />
-                                        <div className="flex gap-4 pt-4">
-                                            <Button
-                                                variant="secondary"
-                                                type="button"
-                                                onClick={() => setIsCreateModalOpen(false)}
-                                                className="flex-1 bg-slate-100 text-slate-700 hover:bg-slate-200 h-12 rounded-xl font-semibold"
-                                            >
-                                                Cancel
-                                            </Button>
-                                            <Button
-                                                type="submit"
-                                                disabled={createClassMutation.isPending}
-                                                className="flex-2 bg-[#4F46E5] hover:bg-[#4338CA] text-white h-12 rounded-xl font-semibold px-8 gap-2"
-                                            >
-                                                {createClassMutation.isPending ? "Adding..." : <><CheckCircle2 className="h-4 w-4" /> Add Class</>}
-                                            </Button>
-                                        </div>
-                                    </form>
-                                </Form>
-                            </DialogContent>
-                        </Dialog>
+                                                        <FormMessage />
+                                                    </FormItem>
+                                                )}
+                                            />
+                                            <FormField
+                                                control={form.control}
+                                                name="subject"
+                                                render={({ field }) => (
+                                                    <FormItem>
+                                                        <FormLabel className="text-slate-600 font-semibold">Subject</FormLabel>
+                                                        <FormControl>
+                                                            <Input
+                                                                placeholder="e.g., Computer Science"
+                                                                {...field}
+                                                                className="rounded-xl h-12 border-slate-200 focus:border-indigo-500 focus:ring-indigo-500"
+                                                                value={field.value || ""}
+                                                            />
+                                                        </FormControl>
+                                                        <FormMessage />
+                                                    </FormItem>
+                                                )}
+                                            />
+                                            <FormField
+                                                control={form.control}
+                                                name="mentorEmail"
+                                                render={({ field }) => (
+                                                    <FormItem>
+                                                        <FormLabel className="text-slate-600 font-semibold">Mentor (Tech Support)</FormLabel>
+                                                        <Select onValueChange={field.onChange} value={field.value || ""}>
+                                                            <FormControl>
+                                                                <SelectTrigger className="rounded-xl h-12 border-slate-200 focus:border-indigo-500 focus:ring-indigo-500">
+                                                                    <SelectValue placeholder="Select a tech support mentor" />
+                                                                </SelectTrigger>
+                                                            </FormControl>
+                                                            <SelectContent>
+                                                                {techSupportUsers?.map((user) => (
+                                                                    <SelectItem key={user.id} value={user.email}>
+                                                                        {user.fullName} ({user.email})
+                                                                    </SelectItem>
+                                                                ))}
+                                                                {(!techSupportUsers || techSupportUsers.length === 0) && (
+                                                                    <SelectItem value="" disabled>No tech support users available</SelectItem>
+                                                                )}
+                                                            </SelectContent>
+                                                        </Select>
+                                                        <FormMessage />
+                                                    </FormItem>
+                                                )}
+                                            />
+                                            <FormField
+                                                control={form.control}
+                                                name="mode"
+                                                render={({ field }) => (
+                                                    <FormItem>
+                                                        <FormLabel className="text-slate-600 font-semibold">Mode</FormLabel>
+                                                        <Select onValueChange={field.onChange} value={field.value || ""}>
+                                                            <FormControl>
+                                                                <SelectTrigger className="rounded-xl h-12 border-slate-200 focus:border-indigo-500 focus:ring-indigo-500">
+                                                                    <SelectValue placeholder="Select class mode" />
+                                                                </SelectTrigger>
+                                                            </FormControl>
+                                                            <SelectContent>
+                                                                <SelectItem value="online">Online</SelectItem>
+                                                                <SelectItem value="offline">Offline</SelectItem>
+                                                                <SelectItem value="hybrid">Hybrid</SelectItem>
+                                                            </SelectContent>
+                                                        </Select>
+                                                        <FormMessage />
+                                                    </FormItem>
+                                                )}
+                                            />
+                                            <div className="flex gap-4 pt-4">
+                                                <Button
+                                                    variant="secondary"
+                                                    type="button"
+                                                    onClick={() => setIsCreateModalOpen(false)}
+                                                    className="flex-1 bg-slate-100 text-slate-700 hover:bg-slate-200 h-12 rounded-xl font-semibold"
+                                                >
+                                                    Cancel
+                                                </Button>
+                                                <Button
+                                                    type="submit"
+                                                    disabled={createClassMutation.isPending}
+                                                    className="flex-2 bg-[#4F46E5] hover:bg-[#4338CA] text-white h-12 rounded-xl font-semibold px-8 gap-2"
+                                                >
+                                                    {createClassMutation.isPending ? "Adding..." : <><CheckCircle2 className="h-4 w-4" /> Add Class</>}
+                                                </Button>
+                                            </div>
+                                        </form>
+                                    </Form>
+                                </DialogContent>
+                            </Dialog>
+                        )}
                     </div>
 
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
@@ -397,7 +426,7 @@ export default function MyClassesPage() {
                     <div className="p-6 space-y-4">
                         <div className="relative">
                             <Input
-                                placeholder="Search completed students..."
+                                placeholder="Search students ready for class..."
                                 value={studentSearch}
                                 onChange={(e) => setStudentSearch(e.target.value)}
                                 className="pl-10"
@@ -406,7 +435,7 @@ export default function MyClassesPage() {
                         </div>
                         <ScrollArea className="h-[300px] border rounded-xl p-4">
                             <div className="space-y-4">
-                                {completedLeads?.leads.map((student) => (
+                                {readyForClassLeads?.leads.map((student) => (
                                     <div key={student.id} className="flex items-center space-x-3 p-2 hover:bg-slate-50 rounded-lg">
                                         <Checkbox
                                             id={`student-${student.id}`}
@@ -421,12 +450,12 @@ export default function MyClassesPage() {
                                         />
                                         <label htmlFor={`student-${student.id}`} className="flex-1 cursor-pointer">
                                             <p className="font-semibold text-slate-900">{student.name}</p>
-                                            <p className="text-sm text-slate-500">{student.email}</p>
+                                            <p className="text-sm text-slate-500">{student.email} • {student.phone}</p>
                                         </label>
                                     </div>
                                 ))}
-                                {completedLeads?.leads.length === 0 && (
-                                    <p className="text-center text-slate-500 py-8">No completed students found</p>
+                                {(!readyForClassLeads?.leads || readyForClassLeads.leads.length === 0) && (
+                                    <p className="text-center text-slate-500 py-8">No students ready for class</p>
                                 )}
                             </div>
                         </ScrollArea>
