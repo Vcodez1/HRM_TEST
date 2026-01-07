@@ -3923,19 +3923,31 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Get all students for a class with their mapping data (Student ID, joinedAt)
   app.get('/api/classes/:id/student-mappings', isAuthenticated, async (req: any, res) => {
     try {
+      console.log('[student-mappings] Starting request for class:', req.params.id);
       const classId = parseInt(req.params.id);
       if (isNaN(classId)) return res.status(400).json({ message: 'Invalid class ID' });
 
-      const userId = req.user.claims.sub;
+      console.log('[student-mappings] Step 1: Getting user...');
+      const userId = req.user?.claims?.sub;
+      if (!userId) {
+        console.error('[student-mappings] No user ID found in request');
+        return res.status(401).json({ message: 'Unauthorized' });
+      }
       const user = await storage.getUser(userId);
+      console.log('[student-mappings] Step 2: User fetched:', user?.email);
+
+      console.log('[student-mappings] Step 3: Getting class...');
       const cls = await storage.getClass(classId);
+      console.log('[student-mappings] Step 4: Class fetched:', cls?.name);
 
       if (!cls) {
         return res.status(404).json({ message: 'Class not found' });
       }
 
       // Fetch existing mappings
+      console.log('[student-mappings] Step 5: Getting mappings...');
       let mappings = await storage.getClassStudentMappings(classId);
+      console.log('[student-mappings] Step 6: Mappings fetched, count:', mappings.length);
 
       // STEP 1: Auto-enrollment (Tech Support only)
       // If no students enrolled yet, and it's a tech-support mentor,
