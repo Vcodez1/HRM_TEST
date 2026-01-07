@@ -1437,17 +1437,26 @@ c.*,
   async addStudentToClass(classId: number, leadId: number): Promise<ClassStudent | null> {
     try {
       console.log(`[addStudentToClass] Adding lead ${leadId} to class ${classId}`);
+
+      // Check if already enrolled in this specific class
+      const [existing] = await db
+        .select()
+        .from(classStudents)
+        .where(and(eq(classStudents.classId, classId), eq(classStudents.leadId, leadId)))
+        .limit(1);
+
+      if (existing) {
+        console.log(`[addStudentToClass] Lead ${leadId} already in class ${classId}, skipping`);
+        return existing;
+      }
+
       const [newMapping] = await db
         .insert(classStudents)
         .values({ classId, leadId })
-        .onConflictDoNothing()
         .returning();
-      if (newMapping) {
-        console.log(`[addStudentToClass] Successfully added lead ${leadId} to class ${classId}`);
-      } else {
-        console.log(`[addStudentToClass] Lead ${leadId} already in class ${classId} (no conflict)`);
-      }
-      return newMapping || null;
+
+      console.log(`[addStudentToClass] Successfully added lead ${leadId} to class ${classId}`);
+      return newMapping;
     } catch (error) {
       console.error(`[addStudentToClass] Error adding lead ${leadId} to class ${classId}:`, error);
       throw error;
