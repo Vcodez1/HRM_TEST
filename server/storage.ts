@@ -1463,6 +1463,15 @@ c.*,
       .where(inArray(leads.id, leadIds));
   }
 
+  async isStudentInAnyClass(leadId: number): Promise<boolean> {
+    const [mapping] = await db
+      .select()
+      .from(classStudents)
+      .where(eq(classStudents.leadId, leadId))
+      .limit(1);
+    return !!mapping;
+  }
+
   async getClassStudentMappings(classId: number): Promise<ClassStudent[]> {
     return await db.select().from(classStudents).where(eq(classStudents.classId, classId));
   }

@@ -45,6 +45,7 @@ import {
     DialogTrigger,
 } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
+import { useAuth } from "@/hooks/useAuth";
 
 export default function ClassStudentsPage() {
     const [, params] = useRoute("/classes/:id/students");
@@ -55,6 +56,8 @@ export default function ClassStudentsPage() {
     const [isAddStudentOpen, setIsAddStudentOpen] = useState(false);
     const [selectedStudentIds, setSelectedStudentIds] = useState<number[]>([]);
     const [studentSearch, setStudentSearch] = useState("");
+    const { user } = useAuth();
+    const isTechSupport = user?.role === "tech-support";
 
     // Fetch Class Info
     const { data: cls, isLoading: isClassLoading } = useQuery<any>({
@@ -181,30 +184,34 @@ export default function ClassStudentsPage() {
                                 <Trophy className="h-4 w-4" />
                                 Marks
                             </Button>
-                            <Button
-                                className="bg-[#4F46E5] hover:bg-[#4338CA] text-white gap-2 h-10 px-5 rounded-lg shadow-sm"
-                                onClick={() => setIsAddStudentOpen(true)}
-                            >
-                                <Plus className="h-4 w-4" />
-                                Add Student
-                            </Button>
-                            <Button
-                                variant="outline"
-                                className="border-indigo-200 text-indigo-600 hover:bg-indigo-50 gap-2 h-10 px-5 rounded-lg bg-white"
-                                onClick={() => generateIdsMutation.mutate()}
-                                disabled={generateIdsMutation.isPending}
-                            >
-                                {generateIdsMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
-                                Generate Student IDs
-                            </Button>
-                            <Button
-                                variant="outline"
-                                className="border-indigo-200 text-indigo-600 hover:bg-indigo-50 gap-2 h-10 px-5 rounded-lg bg-white"
-                                onClick={() => toast({ title: "Coming Soon", description: "Bulk import is coming soon" })}
-                            >
-                                <FileSpreadsheet className="h-4 w-4" />
-                                Bulk Import
-                            </Button>
+                            {!isTechSupport && (
+                                <>
+                                    <Button
+                                        className="bg-[#4F46E5] hover:bg-[#4338CA] text-white gap-2 h-10 px-5 rounded-lg shadow-sm"
+                                        onClick={() => setIsAddStudentOpen(true)}
+                                    >
+                                        <Plus className="h-4 w-4" />
+                                        Add Student
+                                    </Button>
+                                    <Button
+                                        variant="outline"
+                                        className="border-indigo-200 text-indigo-600 hover:bg-indigo-50 gap-2 h-10 px-5 rounded-lg bg-white"
+                                        onClick={() => generateIdsMutation.mutate()}
+                                        disabled={generateIdsMutation.isPending}
+                                    >
+                                        {generateIdsMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
+                                        Generate Student IDs
+                                    </Button>
+                                    <Button
+                                        variant="outline"
+                                        className="border-indigo-200 text-indigo-600 hover:bg-indigo-50 gap-2 h-10 px-5 rounded-lg bg-white"
+                                        onClick={() => toast({ title: "Coming Soon", description: "Bulk import is coming soon" })}
+                                    >
+                                        <FileSpreadsheet className="h-4 w-4" />
+                                        Bulk Import
+                                    </Button>
+                                </>
+                            )}
                         </div>
                     </div>
 
@@ -281,18 +288,20 @@ export default function ClassStudentsPage() {
                                                     >
                                                         <Trophy className="h-3 w-3" /> Marks
                                                     </Button>
-                                                    <Button
-                                                        variant="outline"
-                                                        size="sm"
-                                                        className="h-8 border-red-100 text-red-600 bg-red-50 hover:bg-red-100 gap-1.5 text-xs font-bold rounded-md"
-                                                        onClick={() => {
-                                                            if (window.confirm("Remove student from this class?")) {
-                                                                deleteStudentMutation.mutate(student.id);
-                                                            }
-                                                        }}
-                                                    >
-                                                        <Trash2 className="h-3 w-3" /> Delete
-                                                    </Button>
+                                                    {!isTechSupport && (
+                                                        <Button
+                                                            variant="outline"
+                                                            size="sm"
+                                                            className="h-8 border-red-100 text-red-600 bg-red-50 hover:bg-red-100 gap-1.5 text-xs font-bold rounded-md"
+                                                            onClick={() => {
+                                                                if (window.confirm("Remove student from this class?")) {
+                                                                    deleteStudentMutation.mutate(student.id);
+                                                                }
+                                                            }}
+                                                        >
+                                                            <Trash2 className="h-3 w-3" /> Delete
+                                                        </Button>
+                                                    )}
                                                 </div>
                                             </TableCell>
                                         </TableRow>

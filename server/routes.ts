@@ -3926,7 +3926,38 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const classId = parseInt(req.params.id);
       if (isNaN(classId)) return res.status(400).json({ message: 'Invalid class ID' });
 
-      const mappings = await storage.getClassStudentMappings(classId);
+      const userId = req.user.claims.sub;
+      const user = await storage.getUser(userId);
+
+      // Fetch existing mappings
+      let mappings = await storage.getClassStudentMappings(classId);
+
+      // If no students enrolled yet, and it's a tech-support mentor,
+      // try to auto-enroll leads assigned to them that are not in any class
+      if (mappings.length === 0 && user?.role === 'tech-support') {
+        const cls = await storage.getClass(classId);
+        if (cls && cls.mentorEmail?.toLowerCase() === user.email?.toLowerCase()) {
+          const mentorLeads = await storage.getLeadsByOwner(user.id);
+          const enrollableLeads = mentorLeads.filter(l =>
+            (l.status === 'ready_for_class' || l.status === 'register') &&
+            l.isActive
+          );
+
+          if (enrollableLeads.length > 0) {
+            console.log(`[student-mappings] Auto-enrolling ${enrollableLeads.length} leads for mentor ${user.email}`);
+            for (const lead of enrollableLeads) {
+              // Only enroll if not already in another class to be safe
+              const inClass = await storage.isStudentInAnyClass(lead.id);
+              if (!inClass) {
+                await storage.addStudentToClass(classId, lead.id);
+              }
+            }
+            // Re-fetch mappings after auto-enrollment
+            mappings = await storage.getClassStudentMappings(classId);
+          }
+        }
+      }
+
       const leads = await storage.getClassStudents(classId);
 
       // Combine leads with their specific mapping data
