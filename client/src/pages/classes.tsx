@@ -76,6 +76,16 @@ export default function MyClassesPage() {
         enabled: isStudentModalOpen && !!selectedClassId,
     });
 
+    // Fetch students currently in the class
+    const { data: currentStudents, isLoading: isLoadingStudents } = useQuery<Lead[]>({
+        queryKey: ["/api/classes", selectedClassId, "students"],
+        queryFn: async () => {
+            const res = await apiRequest("GET", `/api/classes/${selectedClassId}/students`);
+            return res.json();
+        },
+        enabled: isStudentModalOpen && !!selectedClassId,
+    });
+
     const form = useForm<ClassFormValues>({
         resolver: zodResolver(classFormSchema),
         defaultValues: {
@@ -95,6 +105,18 @@ export default function MyClassesPage() {
             queryClient.invalidateQueries({ queryKey: ["/api/classes/with-counts"] });
             setIsStudentModalOpen(false);
             setSelectedStudentIds([]);
+        },
+    });
+
+    const removeStudentMutation = useMutation({
+        mutationFn: async ({ classId, leadId }: { classId: number; leadId: number }) => {
+            await apiRequest("DELETE", `/api/classes/${classId}/students/${leadId}`);
+        },
+        onSuccess: () => {
+            toast({ title: "Success", description: "Student removed from class" });
+            queryClient.invalidateQueries({ queryKey: ["/api/classes", selectedClassId, "students"] });
+            queryClient.invalidateQueries({ queryKey: ["/api/classes/with-counts"] });
+            queryClient.invalidateQueries({ queryKey: ["/api/leads/ready-for-class"] });
         },
     });
 
@@ -426,66 +448,128 @@ export default function MyClassesPage() {
                     <div className="bg-[#4F46E5] p-6 text-white">
                         <DialogTitle className="text-xl font-bold text-white">Add Students to Class</DialogTitle>
                     </div>
-                    <div className="p-6 space-y-4">
-                        <div className="relative">
-                            <Input
-                                placeholder="Search students ready for class..."
-                                value={studentSearch}
-                                onChange={(e) => setStudentSearch(e.target.value)}
-                                className="pl-10"
-                            />
-                            <Search className="absolute left-3 top-3 h-4 w-4 text-slate-400" />
+                    <div className="p-6 space-y-6">
+                        {/* Currently Assigned Students Section */}
+                        <div className="space-y-3">
+                            <h3 className="text-sm font-bold text-slate-900 uppercase tracking-wider flex items-center gap-2">
+                                <Users className="h-4 w-4 text-indigo-500" />
+                                Currently Assigned ({currentStudents?.length || 0})
+                            </h3>
+                            <ScrollArea className="h-[180px] border rounded-2xl p-4 bg-slate-50/50">
+                                <div className="space-y-3">
+                                    {currentStudents?.map((student) => (
+                                        <div key={student.id} className="flex items-center justify-between p-3 bg-white rounded-xl shadow-sm border border-slate-100 group">
+                                            <div className="flex-1">
+                                                <p className="font-bold text-slate-900">{student.name}</p>
+                                                <p className="text-xs text-slate-500">{student.email}</p>
+                                            </div>
+                                            {!isTechSupport && (
+                                                <Button
+                                                    variant="ghost"
+                                                    size="icon"
+                                                    className="h-8 w-8 text-slate-300 hover:text-red-500 hover:bg-red-50 rounded-lg group-hover:opacity-100 transition-all"
+                                                    onClick={() => {
+                                                        if (window.confirm(`Remove ${student.name} from this class?`)) {
+                                                            removeStudentMutation.mutate({
+                                                                classId: selectedClassId!,
+                                                                leadId: student.id
+                                                            });
+                                                        }
+                                                    }}
+                                                >
+                                                    <Trash2 className="h-4 w-4" />
+                                                </Button>
+                                            )}
+                                        </div>
+                                    ))}
+                                    {(!currentStudents || currentStudents.length === 0) && (
+                                        <div className="flex flex-col items-center justify-center py-8 text-center text-slate-400">
+                                            <Users className="h-8 w-8 mb-2 opacity-20" />
+                                            <p className="text-sm">No students assigned yet</p>
+                                        </div>
+                                    )}
+                                </div>
+                            </ScrollArea>
                         </div>
-                        <ScrollArea className="h-[300px] border rounded-xl p-4">
-                            <div className="space-y-4">
-                                {readyForClassLeads?.leads.map((student) => (
-                                    <div key={student.id} className="flex items-center space-x-3 p-2 hover:bg-slate-50 rounded-lg">
-                                        <Checkbox
-                                            id={`student-${student.id}`}
-                                            checked={selectedStudentIds.includes(student.id)}
-                                            onCheckedChange={(checked) => {
-                                                if (checked) {
-                                                    setSelectedStudentIds([...selectedStudentIds, student.id]);
-                                                } else {
-                                                    setSelectedStudentIds(selectedStudentIds.filter(id => id !== student.id));
+
+                        {/* Add Students Section - Only for Admin/SessOrg */}
+                        {!isTechSupport && (
+                            <div className="space-y-3 pt-2 border-t border-slate-100">
+                                <h3 className="text-sm font-bold text-slate-900 uppercase tracking-wider flex items-center gap-2">
+                                    <Plus className="h-4 w-4 text-green-500" />
+                                    Add New Students
+                                </h3>
+                                <div className="relative">
+                                    <Input
+                                        placeholder="Search students ready for class..."
+                                        value={studentSearch}
+                                        onChange={(e) => setStudentSearch(e.target.value)}
+                                        className="pl-10 h-11 rounded-xl border-slate-200"
+                                    />
+                                    <Search className="absolute left-3 top-3.5 h-4 w-4 text-slate-400" />
+                                </div>
+                                <ScrollArea className="h-[200px] border rounded-2xl p-4 bg-white">
+                                    <div className="space-y-2">
+                                        {readyForClassLeads?.leads.map((student) => (
+                                            <div key={student.id} className="flex items-center space-x-3 p-3 hover:bg-slate-50 rounded-xl transition-colors cursor-pointer"
+                                                onClick={() => {
+                                                    if (selectedStudentIds.includes(student.id)) {
+                                                        setSelectedStudentIds(selectedStudentIds.filter(id => id !== student.id));
+                                                    } else {
+                                                        setSelectedStudentIds([...selectedStudentIds, student.id]);
+                                                    }
+                                                }}
+                                            >
+                                                <Checkbox
+                                                    id={`student-${student.id}`}
+                                                    checked={selectedStudentIds.includes(student.id)}
+                                                    className="rounded-md"
+                                                />
+                                                <div className="flex-1">
+                                                    <p className="font-semibold text-slate-900">{student.name}</p>
+                                                    <p className="text-xs text-slate-500">{student.email} • {student.phone}</p>
+                                                </div>
+                                            </div>
+                                        ))}
+                                        {(!readyForClassLeads?.leads || readyForClassLeads.leads.length === 0) && (
+                                            <p className="text-center text-slate-400 py-8 text-sm italic">No students ready for class</p>
+                                        )}
+                                    </div>
+                                </ScrollArea>
+                                <div className="flex justify-between items-center pt-2">
+                                    <p className="text-sm font-medium text-indigo-600 bg-indigo-50 px-3 py-1 rounded-full">
+                                        {selectedStudentIds.length} selected
+                                    </p>
+                                    <div className="flex gap-2">
+                                        <Button variant="outline" onClick={() => setIsStudentModalOpen(false)} className="rounded-xl h-10">
+                                            Close
+                                        </Button>
+                                        <Button
+                                            disabled={selectedStudentIds.length === 0 || addStudentsMutation.isPending}
+                                            onClick={() => {
+                                                if (selectedClassId) {
+                                                    addStudentsMutation.mutate({
+                                                        classId: selectedClassId,
+                                                        leadIds: selectedStudentIds
+                                                    });
                                                 }
                                             }}
-                                        />
-                                        <label htmlFor={`student-${student.id}`} className="flex-1 cursor-pointer">
-                                            <p className="font-semibold text-slate-900">{student.name}</p>
-                                            <p className="text-sm text-slate-500">{student.email} • {student.phone}</p>
-                                        </label>
+                                            className="bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl h-10 px-6"
+                                        >
+                                            {addStudentsMutation.isPending ? "Adding..." : "Add to Class"}
+                                        </Button>
                                     </div>
-                                ))}
-                                {(!readyForClassLeads?.leads || readyForClassLeads.leads.length === 0) && (
-                                    <p className="text-center text-slate-500 py-8">No students ready for class</p>
-                                )}
+                                </div>
                             </div>
-                        </ScrollArea>
-                        <div className="flex justify-between items-center pt-4">
-                            <p className="text-sm text-slate-500">
-                                {selectedStudentIds.length} students selected
-                            </p>
-                            <div className="flex gap-3">
-                                <Button variant="outline" onClick={() => setIsStudentModalOpen(false)}>
-                                    Cancel
-                                </Button>
-                                <Button
-                                    disabled={selectedStudentIds.length === 0 || addStudentsMutation.isPending}
-                                    onClick={() => {
-                                        if (selectedClassId) {
-                                            addStudentsMutation.mutate({
-                                                classId: selectedClassId,
-                                                leadIds: selectedStudentIds
-                                            });
-                                        }
-                                    }}
-                                    className="bg-[#4F46E5] hover:bg-[#4338CA] text-white"
-                                >
-                                    {addStudentsMutation.isPending ? "Adding..." : "Add to Class"}
+                        )}
+
+                        {isTechSupport && (
+                            <div className="flex justify-end pt-2 border-t border-slate-100">
+                                <Button variant="outline" onClick={() => setIsStudentModalOpen(false)} className="rounded-xl h-10">
+                                    Close
                                 </Button>
                             </div>
-                        </div>
+                        )}
                     </div>
                 </DialogContent>
             </Dialog>

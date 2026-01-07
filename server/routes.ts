@@ -623,6 +623,40 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  app.get('/api/classes/:id/students', isAuthenticated, async (req: any, res) => {
+    try {
+      const classId = parseInt(req.params.id);
+      if (isNaN(classId)) return res.status(400).json({ message: 'Invalid class ID' });
+
+      const students = await storage.getClassStudents(classId);
+      res.json(students);
+    } catch (error: any) {
+      res.status(500).json({ message: 'Failed to fetch class students', error: error.message });
+    }
+  });
+
+  app.delete('/api/classes/:id/students/:leadId', isAuthenticated, async (req: any, res) => {
+    try {
+      const classId = parseInt(req.params.id);
+      const leadId = parseInt(req.params.leadId);
+
+      if (isNaN(classId) || isNaN(leadId)) {
+        return res.status(400).json({ message: 'Invalid class or lead ID' });
+      }
+
+      // Check role - only Admin/Manager/Session Organizer can remove
+      const userRole = req.user.role;
+      if (userRole !== 'admin' && userRole !== 'manager' && userRole !== 'session_organizer') {
+        return res.status(403).json({ message: 'Only administrators can remove students' });
+      }
+
+      await storage.removeStudentFromClass(classId, leadId);
+      res.json({ message: 'Student removed from class successfully' });
+    } catch (error: any) {
+      res.status(500).json({ message: 'Failed to remove student from class', error: error.message });
+    }
+  });
+
   app.get('/api/my/completed', isAuthenticated, async (req: any, res) => {
     try {
       const userId = req.user.claims.sub;
