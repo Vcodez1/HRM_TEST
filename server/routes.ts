@@ -156,6 +156,57 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  app.post('/api/tech-support/notify-students', isAuthenticated, async (req: any, res) => {
+    try {
+      const user = await storage.getUser(req.user.claims.sub);
+      if (!user) return res.status(401).json({ message: "User not found" });
+
+      const mentorEmail = user.email as string;
+      const absentDetails = await storage.getAbsentDetailsForMentor(mentorEmail);
+
+      if (absentDetails.length === 0) {
+        return res.json({ message: "No absent students found to notify" });
+      }
+
+      const smtpConfig = await storage.getEmailConfig();
+      if (!smtpConfig || !smtpConfig.smtpEmail || !smtpConfig.appPassword || !smtpConfig.isEnabled) {
+        return res.status(400).json({ message: "Email configuration is incomplete or disabled" });
+      }
+
+      const transporter = nodemailer.createTransport({
+        host: smtpConfig.smtpServer,
+        port: smtpConfig.smtpPort,
+        secure: smtpConfig.smtpPort === 465,
+        auth: {
+          user: smtpConfig.smtpEmail,
+          pass: smtpConfig.appPassword,
+        },
+      });
+
+      const results = [];
+      for (const student of absentDetails) {
+        try {
+          await transporter.sendMail({
+            from: `"${process.env.APP_NAME || 'HRM Portal'}" <${smtpConfig.smtpEmail}>`,
+            to: student.studentEmail,
+            subject: `Absence Notification - ${student.className}`,
+            text: `Dear ${student.studentName},\n\nYou were marked absent for the ${student.className} class on ${student.date}. Please ensure you attend the next session.\n\nBest regards,\nVCodez Team`,
+            html: `<p>Dear <b>${student.studentName}</b>,</p><p>You were marked absent for the <b>${student.className}</b> class on <b>${student.date}</b>. Please ensure you attend the next session.</p><p>Best regards,<br>VCodez Team</p>`,
+          });
+          results.push({ student: student.studentName, status: "Sent" });
+        } catch (err: any) {
+          console.error(`Failed to notify ${student.studentEmail}:`, err);
+          results.push({ student: student.studentName, status: "Failed", error: err.message });
+        }
+      }
+
+      res.json({ message: "Notifications processed", results });
+    } catch (error: any) {
+      console.error('[POST /api/tech-support/notify-students] Error:', error);
+      res.status(500).json({ message: "Failed to process notifications", error: error.message });
+    }
+  });
+
 
 
   // ==================== LEAD API ENDPOINTS ====================

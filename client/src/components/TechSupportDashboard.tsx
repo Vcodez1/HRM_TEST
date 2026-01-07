@@ -1,4 +1,7 @@
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation } from "@tanstack/react-query";
+import { apiRequest } from "@/lib/queryClient";
+import { useToast } from "@/hooks/use-toast";
+import { Loader2 } from "lucide-react";
 import {
     Users,
     BookMarked,
@@ -33,6 +36,28 @@ interface TechSupportMetrics {
 export default function TechSupportDashboard({ userDisplayName }: { userDisplayName: string }) {
     const { data: metrics, isLoading } = useQuery<TechSupportMetrics>({
         queryKey: ["/api/tech-support/dashboard"],
+    });
+
+    const { toast } = useToast();
+
+    const notifyMutation = useMutation({
+        mutationFn: async () => {
+            const response = await apiRequest("POST", "/api/tech-support/notify-students");
+            return response.json();
+        },
+        onSuccess: (data) => {
+            toast({
+                title: "Success",
+                description: data.message || "Absent students notified successfully",
+            });
+        },
+        onError: (error: any) => {
+            toast({
+                title: "Error",
+                description: error.message || "Failed to notify students",
+                variant: "destructive",
+            });
+        },
     });
 
     if (isLoading) {
@@ -124,9 +149,16 @@ export default function TechSupportDashboard({ userDisplayName }: { userDisplayN
                                 </div>
                             </div>
 
-                            <div className="group cursor-not-allowed opacity-60">
-                                <div className="h-28 flex flex-col items-center justify-center border-2 border-yellow-400 bg-yellow-50/50 dark:bg-yellow-900/10 rounded-2xl p-4">
-                                    <Bell className="h-8 w-8 text-yellow-500 mb-2" />
+                            <div
+                                className={`group cursor-pointer ${notifyMutation.isPending ? 'opacity-50 cursor-not-allowed' : ''}`}
+                                onClick={() => !notifyMutation.isPending && notifyMutation.mutate()}
+                            >
+                                <div className="h-28 flex flex-col items-center justify-center border-2 border-yellow-400 bg-yellow-50/50 dark:bg-yellow-900/10 rounded-2xl p-4 transition-all hover:bg-yellow-100 dark:hover:bg-yellow-900/20 hover:shadow-lg">
+                                    {notifyMutation.isPending ? (
+                                        <Loader2 className="h-8 w-8 text-yellow-500 mb-2 animate-spin" />
+                                    ) : (
+                                        <Bell className="h-8 w-8 text-yellow-500 mb-2" />
+                                    )}
                                     <span className="text-yellow-600 dark:text-yellow-400 font-bold uppercase text-[10px] tracking-widest text-center">Notify Students</span>
                                 </div>
                             </div>

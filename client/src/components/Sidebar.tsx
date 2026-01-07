@@ -301,7 +301,7 @@ export default function Sidebar() {
       href: "/email-settings",
       icon: Mail,
       current: location === "/email-settings" || location === "/test-email",
-      roleRequired: ["admin", "manager"],
+      roleRequired: ["admin", "manager", "tech-support"],
     },
   ];
 

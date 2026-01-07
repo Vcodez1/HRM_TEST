@@ -205,6 +205,15 @@ export interface IStorage {
   // Email Configuration operations
   getEmailConfig(): Promise<EmailConfig | undefined>;
   updateEmailConfig(config: InsertEmailConfig): Promise<EmailConfig>;
+
+  // Notification operations
+  getAbsentDetailsForMentor(mentorEmail: string): Promise<Array<{
+    leadId: number;
+    studentName: string;
+    studentEmail: string;
+    className: string;
+    date: string;
+  }>>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -1700,6 +1709,46 @@ c.*,
       const [inserted] = await db.insert(emailConfig).values(configData).returning();
       return inserted;
     }
+  }
+
+  async getAbsentDetailsForMentor(mentorEmail: string) {
+    // Get classes for this mentor
+    const mentorClasses = await db.select().from(classes).where(eq(classes.mentorEmail, mentorEmail));
+    if (mentorClasses.length === 0) return [];
+
+    const classIds = mentorClasses.map((c: any) => c.id);
+
+    // Get absent attendance records for these classes
+    const absentRecords = await db
+      .select({
+        leadId: attendance.leadId,
+        classId: attendance.classId,
+        date: attendance.date
+      })
+      .from(attendance)
+      .where(
+        and(
+          inArray(attendance.classId, classIds),
+          eq(attendance.status, 'Absent')
+        )
+      );
+
+    const details = [];
+    for (const record of absentRecords) {
+      const [student] = await db.select().from(leads).where(eq(leads.id, record.leadId));
+      const cls = mentorClasses.find((c: any) => c.id === record.classId);
+
+      if (student && cls && student.email) {
+        details.push({
+          leadId: student.id,
+          studentName: student.name,
+          studentEmail: student.email,
+          className: cls.name,
+          date: record.date
+        });
+      }
+    }
+    return details;
   }
 }
 
