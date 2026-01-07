@@ -118,21 +118,13 @@ export default function EmailSettings() {
                         </div>
                         <p className="text-slate-500 font-medium">Check your current SMTP email settings</p>
                         <div className="mt-6 flex items-center gap-4 py-4 border-t border-slate-100">
-                            <FormField
-                                control={form.control}
-                                name="isEnabled"
-                                render={({ field }) => (
-                                    <FormItem className="flex items-center space-x-3 space-y-0">
-                                        <FormControl>
-                                            <Switch
-                                                checked={field.value}
-                                                onCheckedChange={field.onChange}
-                                            />
-                                        </FormControl>
-                                        <FormLabel className="text-sm font-bold text-slate-700">Enable Email Notifications</FormLabel>
-                                    </FormItem>
-                                )}
-                            />
+                            <div className="flex items-center space-x-3">
+                                <Switch
+                                    checked={form.watch("isEnabled")}
+                                    onCheckedChange={(value) => form.setValue("isEnabled", value)}
+                                />
+                                <Label className="text-sm font-bold text-slate-700">Enable Email Notifications</Label>
+                            </div>
                         </div>
                         <p className="text-xs text-slate-400 mt-1">Send automatic emails to absent students</p>
                     </div>
