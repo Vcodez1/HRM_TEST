@@ -46,6 +46,17 @@ import {
 } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { useAuth } from "@/hooks/useAuth";
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { z } from "zod";
+import {
+    Form,
+    FormControl,
+    FormField,
+    FormItem,
+    FormLabel,
+    FormMessage,
+} from "@/components/ui/form";
 
 export default function ClassStudentsPage() {
     const [, params] = useRoute("/classes/:id/students");
@@ -58,6 +69,37 @@ export default function ClassStudentsPage() {
     const [studentSearch, setStudentSearch] = useState("");
     const { user } = useAuth();
     const isTechSupport = user?.role === "tech-support";
+    const [editingStudent, setEditingStudent] = useState<any>(null);
+
+    const editStudentSchema = z.object({
+        name: z.string().min(1, "Name is required"),
+        email: z.string().email("Valid email is required"),
+        studentId: z.string().optional(),
+        joinedAt: z.string().optional(),
+    });
+
+    type EditStudentForm = z.infer<typeof editStudentSchema>;
+
+    const editForm = useForm<EditStudentForm>({
+        resolver: zodResolver(editStudentSchema),
+        defaultValues: {
+            name: "",
+            email: "",
+            studentId: "",
+            joinedAt: "",
+        },
+    });
+
+    // Update form when editingStudent changes
+    const openEditDialog = (student: any) => {
+        setEditingStudent(student);
+        editForm.reset({
+            name: student.name || "",
+            email: student.email || "",
+            studentId: student.studentId || "",
+            joinedAt: student.joinedAt ? format(new Date(student.joinedAt), "yyyy-MM-dd") : "",
+        });
+    };
 
     // Fetch Class Info
     const { data: cls, isLoading: isClassLoading } = useQuery<any>({
@@ -113,6 +155,38 @@ export default function ClassStudentsPage() {
             toast({ title: "Success", description: "Student removed from class" });
         },
     });
+
+    const updateStudentMutation = useMutation({
+        mutationFn: async ({ leadId, data, mappingData }: { leadId: number, data: any, mappingData: any }) => {
+            // Updated lead info (Name, Email)
+            await apiRequest("PUT", `/api/leads/${leadId}`, data);
+            // Update mapping info (Student ID, Joined At)
+            await apiRequest("PATCH", `/api/classes/${classId}/students/${leadId}/mapping`, mappingData);
+        },
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: [`/api/classes/${classId}/student-mappings`] });
+            toast({ title: "Success", description: "Student updated successfully" });
+            setEditingStudent(null);
+        },
+        onError: (error: any) => {
+            toast({ title: "Error", description: error.message, variant: "destructive" });
+        }
+    });
+
+    const onEditSubmit = (data: EditStudentForm) => {
+        if (!editingStudent) return;
+        updateStudentMutation.mutate({
+            leadId: editingStudent.id,
+            data: {
+                name: data.name,
+                email: data.email,
+            },
+            mappingData: {
+                studentId: data.studentId,
+                joinedAt: data.joinedAt,
+            }
+        });
+    };
 
     const filteredStudents = students?.filter((s: any) =>
         s.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -278,6 +352,7 @@ export default function ClassStudentsPage() {
                                                         variant="outline"
                                                         size="sm"
                                                         className="h-8 border-amber-200 text-amber-700 bg-amber-50 hover:bg-amber-100 gap-1.5 text-xs font-bold rounded-md"
+                                                        onClick={() => openEditDialog(student)}
                                                     >
                                                         <Pencil className="h-3 w-3" /> Edit
                                                     </Button>
@@ -419,6 +494,100 @@ export default function ClassStudentsPage() {
                                 </Button>
                             </div>
                         </div>
+                    </div>
+                </DialogContent>
+            </Dialog>
+
+            {/* Edit Student Dialog */}
+            <Dialog open={!!editingStudent} onOpenChange={(open) => !open && setEditingStudent(null)}>
+                <DialogContent className="sm:max-w-[450px] rounded-3xl p-0 overflow-hidden border-none shadow-2xl">
+                    <div className="bg-amber-500 p-6 text-white flex items-center gap-3">
+                        <Pencil className="h-6 w-6" />
+                        <DialogTitle className="text-xl font-bold text-white">Edit Student Details</DialogTitle>
+                    </div>
+                    <div className="p-8">
+                        <Form {...editForm}>
+                            <form onSubmit={editForm.handleSubmit(onEditSubmit)} className="space-y-5">
+                                <FormField
+                                    control={editForm.control}
+                                    name="name"
+                                    render={({ field }) => (
+                                        <FormItem>
+                                            <FormLabel className="text-slate-700 font-bold">Full Name</FormLabel>
+                                            <FormControl>
+                                                <Input {...field} className="rounded-xl border-slate-200 h-11" />
+                                            </FormControl>
+                                            <FormMessage />
+                                        </FormItem>
+                                    )}
+                                />
+                                <FormField
+                                    control={editForm.control}
+                                    name="email"
+                                    render={({ field }) => (
+                                        <FormItem>
+                                            <FormLabel className="text-slate-700 font-bold">Email Address</FormLabel>
+                                            <FormControl>
+                                                <Input {...field} type="email" className="rounded-xl border-slate-200 h-11" />
+                                            </FormControl>
+                                            <FormMessage />
+                                        </FormItem>
+                                    )}
+                                />
+                                <div className="grid grid-cols-2 gap-4">
+                                    <FormField
+                                        control={editForm.control}
+                                        name="studentId"
+                                        render={({ field }) => (
+                                            <FormItem>
+                                                <FormLabel className="text-slate-700 font-bold">Student ID</FormLabel>
+                                                <FormControl>
+                                                    <Input {...field} className="rounded-xl border-slate-200 h-11" placeholder="e.g. FSD-01" />
+                                                </FormControl>
+                                                <FormMessage />
+                                            </FormItem>
+                                        )}
+                                    />
+                                    <FormField
+                                        control={editForm.control}
+                                        name="joinedAt"
+                                        render={({ field }) => (
+                                            <FormItem>
+                                                <FormLabel className="text-slate-700 font-bold">Joined Date</FormLabel>
+                                                <FormControl>
+                                                    <Input {...field} type="date" className="rounded-xl border-slate-200 h-11" />
+                                                </FormControl>
+                                                <FormMessage />
+                                            </FormItem>
+                                        )}
+                                    />
+                                </div>
+                                <div className="pt-4 flex gap-3">
+                                    <Button
+                                        type="button"
+                                        variant="outline"
+                                        className="flex-1 h-11 rounded-xl border-slate-200 text-slate-600 font-bold"
+                                        onClick={() => setEditingStudent(null)}
+                                    >
+                                        Cancel
+                                    </Button>
+                                    <Button
+                                        type="submit"
+                                        className="flex-1 h-11 rounded-xl bg-amber-500 hover:bg-amber-600 text-white font-bold"
+                                        disabled={updateStudentMutation.isPending}
+                                    >
+                                        {updateStudentMutation.isPending ? (
+                                            <>
+                                                <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                                                Saving...
+                                            </>
+                                        ) : (
+                                            "Save Changes"
+                                        )}
+                                    </Button>
+                                </div>
+                            </form>
+                        </Form>
                     </div>
                 </DialogContent>
             </Dialog>
