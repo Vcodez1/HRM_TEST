@@ -267,6 +267,13 @@ export default function Sidebar() {
       current: location === "/my-team-lead",
       roleRequired: "team_lead",
     },
+    {
+      name: "System Help",
+      href: "/tech-docs",
+      icon: BookOpen,
+      current: location === "/tech-docs",
+      roleRequired: ["tech-support", "admin"],
+    },
   ];
 
   const getUserInitials = () => {
