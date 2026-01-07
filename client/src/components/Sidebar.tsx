@@ -198,12 +198,12 @@ export default function Sidebar() {
       subRoleRequired: "session_organizer",
     },
     {
-      name: "My Classes",
+      name: user?.role === 'tech-support' ? "Classes" : "My Classes",
       href: "/classes",
       icon: BookOpen,
       current: location === "/classes",
       roleRequired: ["session_organizer", "admin", "tech-support"],
-      subRoleRequired: undefined, // Allow tech-support to see without sub-role requirement
+      subRoleRequired: undefined,
     },
     {
       name: "User Management",

@@ -33,6 +33,7 @@ import { apiRequest, queryClient } from "@/lib/queryClient";
 import { isAdminOrganizer, isSessionOrganizer, hasManagerPermissions, hasAccountsPermissions, getAdminSubRole } from "@/lib/adminRoleUtils";
 import { Link } from "wouter";
 import { BookMarked, History, Mail as MailIcon, FileText, BookCheck } from "lucide-react";
+import TechSupportDashboard from "@/components/TechSupportDashboard";
 
 export default function Dashboard() {
   const { toast } = useToast();
@@ -451,635 +452,643 @@ export default function Dashboard() {
 
       {/* Main Content */}
       <div className="flex-1 flex flex-col overflow-hidden relative z-10 ml-64">
-        {/* Header */}
-        <header className="bg-card border-b border-border px-6 py-4">
-          <div className="flex items-center justify-between">
-            <div>
-              <h1
-                className="text-2xl font-bold text-foreground"
-                data-testid="text-page-title"
-              >
-                Dashboard Overview
-              </h1>
-              <p className="text-sm text-muted-foreground">
-                Monitor leads, manage users, and track performance
-              </p>
-            </div>
-            <div className="flex items-center space-x-4">
-              <NotificationBell />
-              <div className="relative">
-                <Input
-                  type="text"
-                  placeholder="Global search..."
-                  className="w-64 pl-10"
-                  data-testid="input-global-search"
-                />
-                <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
-              </div>
-
-              {/* Date Range Picker - Only for accounts, session organizer, and admin */}
-              {!!user && (hasAccountsPermissions((user as any)?.role) || (user as any)?.role === "admin") && (
-                <div className="relative">
-                  <Button
-                    onClick={() => setShowDatePicker(!showDatePicker)}
-                    disabled={isDownloading}
-                    variant="outline"
-                    data-testid="button-download-data"
+        {user?.role === 'tech-support' || user?.role === 'admin' && getAdminSubRole() === 'tech_support' ? (
+          <main className="flex-1 overflow-y-auto p-10">
+            <TechSupportDashboard userDisplayName={user?.fullName || user?.username || "User"} />
+          </main>
+        ) : (
+          <>
+            {/* Header */}
+            <header className="bg-card border-b border-border px-6 py-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h1
+                    className="text-2xl font-bold text-foreground"
+                    data-testid="text-page-title"
                   >
-                    <Download className="mr-2 h-4 w-4" />
-                    {isDownloading ? "Downloading..." : "Download Data"}
-                  </Button>
-
-                  {/* Dropdown for date selection */}
-                  {showDatePicker && (
-                    <div className="absolute right-0 mt-2 w-80 bg-white dark:bg-[#1a1a1a] border border-border rounded-lg shadow-lg z-50 p-4 space-y-3">
-                      <div>
-                        <label className="text-sm font-medium">From Date</label>
-                        <Input
-                          type="date"
-                          value={fromDate}
-                          onChange={(e) => setFromDate(e.target.value)}
-                          min={dateRange?.minDate}
-                          max={dateRange?.maxDate}
-                          className="mt-1"
-                          data-testid="input-from-date"
-                        />
-                      </div>
-                      <div>
-                        <label className="text-sm font-medium">To Date</label>
-                        <Input
-                          type="date"
-                          value={toDate}
-                          onChange={(e) => setToDate(e.target.value)}
-                          min={dateRange?.minDate}
-                          max={dateRange?.maxDate}
-                          className="mt-1"
-                          data-testid="input-to-date"
-                        />
-                      </div>
-                      <div className="text-xs text-muted-foreground">
-                        Data available from{" "}
-                        <strong>{dateRange?.minDate}</strong> to{" "}
-                        <strong>{dateRange?.maxDate}</strong>
-                      </div>
-                      <div className="flex gap-2">
-                        <Button
-                          onClick={handleDownloadData}
-                          disabled={isDownloading}
-                          size="sm"
-                          className="flex-1"
-                          data-testid="button-download-confirm"
-                        >
-                          {isDownloading ? "Downloading..." : "Download"}
-                        </Button>
-                        <Button
-                          onClick={() => setShowDatePicker(false)}
-                          size="sm"
-                          variant="ghost"
-                          className="flex-1"
-                          data-testid="button-close-date-picker"
-                        >
-                          Cancel
-                        </Button>
-                      </div>
-                    </div>
-                  )}
+                    Dashboard Overview
+                  </h1>
+                  <p className="text-sm text-muted-foreground">
+                    Monitor leads, manage users, and track performance
+                  </p>
                 </div>
-              )}
-
-              {((user as any)?.role === "manager" || (user as any)?.role === "admin" || (user as any)?.role === "team_lead") && (
-                <div className="flex items-center gap-2">
-                  <Filter className="h-4 w-4 text-muted-foreground" />
-                  <Select
-                    value={managerCategoryFilter}
-                    onValueChange={setManagerCategoryFilter}
-                  >
-                    <SelectTrigger className="w-48" data-testid="select-category-filter">
-                      <SelectValue placeholder="Filter by Category" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">All Categories</SelectItem>
-                      {categoryOptions.map((cat) => (
-                        <SelectItem key={cat} value={cat}>{cat}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-              )}
-
-              {((user as any)?.role === "manager" || (user as any)?.role === "admin" || (user as any)?.role === "team_lead") && (
-                <Button
-                  onClick={() => setShowBulkUpload(true)}
-                  data-testid="button-bulk-upload"
-                >
-                  <Upload className="mr-2 h-4 w-4" />
-                  Bulk Upload
-                </Button>
-              )}
-            </div>
-          </div>
-        </header>
-
-        {/* Dashboard Content */}
-        <main className="flex-1 overflow-y-auto p-6">
-          {/* Category indicator for HR users */}
-          {((user as any)?.role === "hr" || (user as any)?.role === "session-coordinator") && (
-            <div className="mb-4 flex items-center gap-2 text-sm text-muted-foreground">
-              <Filter className="h-4 w-4" />
-              <span>Showing data for category: <strong className="text-foreground">{selectedCategory}</strong></span>
-            </div>
-          )}
-          {/* Accounts users see all categories */}
-          {(user as any)?.role === "accounts" && (
-            <div className="mb-4 flex items-center gap-2 text-sm text-muted-foreground">
-              <Filter className="h-4 w-4" />
-              <span>Showing: <strong className="text-foreground">All Categories</strong> (completed leads from HR)</span>
-            </div>
-          )}
-
-          {/* Category indicator for managers when filtering */}
-          {((user as any)?.role === "manager" || (user as any)?.role === "admin") && managerCategoryFilter !== "all" && (
-            <div className="mb-4 flex items-center gap-2 text-sm text-muted-foreground">
-              <Filter className="h-4 w-4" />
-              <span>Filtering by category: <strong className="text-foreground">{managerCategoryFilter}</strong></span>
-            </div>
-          )}
-
-          {/* Quick Actions for Session Organizer */}
-          {isSessionOrganizer(user?.role) && (
-            <div className="mb-8">
-              <div className="flex items-center space-x-2 mb-4">
-                <Send className="w-5 h-5 text-primary" />
-                <h2 className="text-xl font-bold">Quick Actions</h2>
-              </div>
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-                <Link href="/classes">
-                  <Card className="p-4 hover:shadow-green-md transition-all cursor-pointer border-blue-200 bg-blue-50/30 dark:bg-blue-900/10">
-                    <div className="flex flex-col items-center text-center space-y-2">
-                      <div className="p-3 bg-blue-100 dark:bg-blue-900/30 rounded-lg">
-                        <BookMarked className="w-6 h-6 text-blue-600" />
-                      </div>
-                      <span className="font-semibold text-blue-700 dark:text-blue-400">Manage Classes</span>
-                    </div>
-                  </Card>
-                </Link>
-                <Link href="/my-completion">
-                  <Card className="p-4 hover:shadow-green-md transition-all cursor-pointer border-cyan-200 bg-cyan-50/30 dark:bg-cyan-900/10">
-                    <div className="flex flex-col items-center text-center space-y-2">
-                      <div className="p-3 bg-cyan-100 dark:bg-cyan-900/30 rounded-lg">
-                        <History className="w-6 h-6 text-cyan-600" />
-                      </div>
-                      <span className="font-semibold text-cyan-700 dark:text-cyan-400">View History</span>
-                    </div>
-                  </Card>
-                </Link>
-                <Card className="p-4 hover:shadow-green-md transition-all cursor-pointer border-green-200 bg-green-50/30 dark:bg-green-900/10" onClick={() => setShowDatePicker(true)}>
-                  <div className="flex flex-col items-center text-center space-y-2">
-                    <div className="p-3 bg-green-100 dark:bg-green-900/30 rounded-lg">
-                      <FileText className="w-6 h-6 text-green-600" />
-                    </div>
-                    <span className="font-semibold text-green-700 dark:text-green-400">Export Data</span>
-                  </div>
-                </Card>
-                <Card className="p-4 hover:shadow-green-md transition-all cursor-pointer border-yellow-200 bg-yellow-50/30 dark:bg-yellow-900/10 opacity-50 cursor-not-allowed">
-                  <div className="flex flex-col items-center text-center space-y-2">
-                    <div className="p-3 bg-yellow-100 dark:bg-yellow-900/30 rounded-lg">
-                      <Bell className="w-6 h-6 text-yellow-600" />
-                    </div>
-                    <span className="font-semibold text-yellow-700 dark:text-yellow-400">Notify Students</span>
-                  </div>
-                </Card>
-              </div>
-            </div>
-          )}
-
-          {/* Metrics Grid */}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-            <MetricsCard
-              title={(user as any)?.role === "hr" || (user as any)?.role === "accounts" || (user as any)?.role === "session-coordinator" ? "My Leads" : "Total Leads"}
-              value={
-                (user as any)?.role === "hr" || (user as any)?.role === "accounts" || (user as any)?.role === "session-coordinator"
-                  ? (myLeadsData?.leads?.length || 0)
-                  : (metrics?.totalLeads || 0)
-              }
-              icon={Users}
-              change={(user as any)?.role === "accounts" ? "All Categories" : ((user as any)?.role === "hr" || (user as any)?.role === "session-coordinator" ? selectedCategory : (managerCategoryFilter !== "all" ? managerCategoryFilter : "All Categories"))}
-              changeLabel={(user as any)?.role === "accounts" ? "completed from HR" : ((user as any)?.role === "hr" || (user as any)?.role === "session-coordinator" ? "in your category" : (managerCategoryFilter !== "all" ? "category filter" : "showing all"))}
-              loading={(user as any)?.role === "hr" || (user as any)?.role === "accounts" || (user as any)?.role === "session-coordinator" ? !myLeadsData : metricsLoading}
-              testId="metric-total-leads"
-            />
-            {((user as any)?.role === "manager" || (user as any)?.role === "admin" || (user as any)?.role === "team_lead") && (
-              <MetricsCard
-                title="Active HR Users"
-                value={metrics?.activeHR || 0}
-                icon={Clock}
-                change="HR team members active"
-                changeLabel="currently active"
-                changeType="positive"
-                loading={!hrUsersData}
-                testId="metric-active-hr"
-              />
-            )}
-            {((user as any)?.role === "manager" || (user as any)?.role === "admin" || (user as any)?.role === "team_lead") && (
-              <MetricsCard
-                title="Completed"
-                value={metrics?.completedLeads || 0}
-                icon={CheckCircle}
-                change={managerCategoryFilter !== "all" ? managerCategoryFilter : "All Categories"}
-                changeLabel={managerCategoryFilter !== "all" ? "category filter" : "showing all"}
-                loading={metricsLoading}
-                testId="metric-completed"
-              />
-            )}
-            {((user as any)?.role === "manager" || (user as any)?.role === "admin" || (user as any)?.role === "team_lead") && (
-              <MetricsCard
-                title="Revenue Pipeline"
-                value={formatRevenueDisplay(metrics?.revenue || 0)}
-                icon={DollarSign}
-                change={managerCategoryFilter !== "all" ? managerCategoryFilter : "All Categories"}
-                changeLabel={managerCategoryFilter !== "all" ? "category filter" : "total collected"}
-                loading={metricsLoading}
-                testId="metric-revenue"
-              />
-            )}
-            {/* Available Leads Card for HR */}
-            {((user as any)?.role === "hr" || (user as any)?.role === "session-coordinator") && (
-              <MetricsCard
-                title="Available to Claim"
-                value={
-                  (metrics?.statusDistribution?.new || 0) +
-                  (metrics?.statusDistribution?.register || 0)
-                }
-                icon={Search}
-                change={selectedCategory}
-                changeLabel="in current category"
-                loading={metricsLoading}
-                testId="metric-available-leads"
-              />
-            )}
-          </div>
-
-          {/* Recent Sessions Table for Session Organizers */}
-          {isSessionOrganizer(user?.role) && (
-            <Card className="mb-8 shadow-green-lg border border-border overflow-hidden">
-              <CardHeader className="bg-gradient-to-r from-emerald-50 to-teal-50 dark:from-emerald-950 dark:to-teal-950 pb-4">
-                <div className="flex items-center justify-between">
-                  <CardTitle className="flex items-center text-xl font-bold">
-                    <BookCheck className="mr-2 h-5 w-5 text-emerald-600" />
-                    Scheduled Sessions
-                  </CardTitle>
-                  <Link href="/my-sessions">
-                    <Button variant="ghost" size="sm" className="text-emerald-700 dark:text-emerald-400 font-semibold hover:bg-emerald-100/50">
-                      View All Sessions →
-                    </Button>
-                  </Link>
-                </div>
-              </CardHeader>
-              <CardContent className="p-0">
-                <div className="overflow-x-auto">
-                  <table className="w-full text-sm text-left">
-                    <thead className="bg-muted/50 text-muted-foreground font-medium border-b">
-                      <tr>
-                        <th className="px-6 py-4">Student</th>
-                        <th className="px-6 py-4">Status</th>
-                        <th className="px-6 py-4">Timing</th>
-                        <th className="px-6 py-4 text-right">Actions</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y">
-                      {(myLeadsData?.leads as any[])?.filter(l => l.status === 'scheduled').slice(0, 5).map((lead) => (
-                        <tr key={lead.id} className="hover:bg-muted/30 transition-colors">
-                          <td className="px-6 py-4">
-                            <div className="font-semibold text-foreground">{lead.name}</div>
-                            <div className="text-xs text-muted-foreground">{lead.email}</div>
-                          </td>
-                          <td className="px-6 py-4 text-xs">
-                            <span className="status-badge status-scheduled px-2 py-1">
-                              {lead.status.replace('_', ' ')}
-                            </span>
-                          </td>
-                          <td className="px-6 py-4">
-                            <div className="text-foreground">{lead.sessionDays}</div>
-                            <div className="text-xs text-muted-foreground font-medium">{lead.timing}</div>
-                          </td>
-                          <td className="px-6 py-4 text-right">
-                            <Button
-                              size="sm"
-                              className="bg-primary hover:bg-primary/90 h-8"
-                              onClick={async () => {
-                                try {
-                                  await apiRequest("PUT", `/api/leads/${lead.id}`, {
-                                    status: "completed",
-                                    changeReason: "Class created from dashboard"
-                                  });
-                                  queryClient.invalidateQueries({ queryKey: ["/api/my/leads"] });
-                                  queryClient.invalidateQueries({ queryKey: ["/api/my/completed"] });
-                                  toast({
-                                    title: "Class Created",
-                                    description: `Class for ${lead.name} has been initiated.`
-                                  });
-                                } catch (e) {
-                                  toast({
-                                    title: "Error",
-                                    description: "Failed to create class",
-                                    variant: "destructive"
-                                  });
-                                }
-                              }}
-                            >
-                              <BookCheck className="w-3 h-3 mr-1" />
-                              Create Class
-                            </Button>
-                          </td>
-                        </tr>
-                      ))}
-                      {(!(myLeadsData?.leads as any[])?.filter(l => l.status === 'scheduled').length) && (
-                        <tr>
-                          <td colSpan={4} className="px-6 py-12 text-center text-muted-foreground">
-                            No scheduled sessions found.
-                          </td>
-                        </tr>
-                      )}
-                    </tbody>
-                  </table>
-                </div>
-              </CardContent>
-            </Card>
-          )}
-
-          {/* Modern Dashboard Layout */}
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
-            {/* Left Column - Spans 2 rows */}
-            <div className="lg:col-span-2 space-y-6">
-              {/* Pie Chart - Wider */}
-              <Card className="shadow-green-lg hover:shadow-green-bright transition-shadow duration-300 border border-border overflow-hidden">
-                <CardHeader className="bg-gradient-to-r from-blue-50 to-purple-50 dark:from-blue-950 dark:to-purple-950 pb-4">
-                  <CardTitle className="text-xl font-bold">
-                    My Lead Status
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="pt-6 px-6 pb-6 min-h-[390px] flex items-center justify-center">
-                  <StatusChart data={roleSpecificMetrics} />
-                </CardContent>
-              </Card>
-
-              {/* Allocation Strategy - Full Width Bottom */}
-              <Card className="shadow-green-lg hover:shadow-green-bright transition-shadow duration-300 border border-border overflow-hidden">
-                <CardHeader className="bg-gradient-to-r from-blue-50 to-purple-50 dark:from-blue-950 dark:to-purple-950 pb-4">
-                  <CardTitle className="text-xl font-bold">
-                    Allocation Strategy
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-3 pt-4 pb-3 px-4 dashboard-allocation-card min-h-[550px]">
-                  <div className="flex items-center justify-between p-3 bg-muted rounded-lg shadow-sm">
-                    <div>
-                      <p className="text-sm font-medium">Current Strategy</p>
-                      <p className="text-sm text-muted-foreground">
-                        Registration Based
-                      </p>
-                    </div>
-                    <span className="status-badge status-ready-for-class text-sm px-3 py-1.5">
-                      Active
-                    </span>
+                <div className="flex items-center space-x-4">
+                  <NotificationBell />
+                  <div className="relative">
+                    <Input
+                      type="text"
+                      placeholder="Global search..."
+                      className="w-64 pl-10"
+                      data-testid="input-global-search"
+                    />
+                    <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
                   </div>
 
-                  <div className="space-y-3">
-                    <h4 className="text-sm font-semibold">
-                      HR Status Assignment
-                    </h4>
-                    <div className="space-y-2 max-h-[600px] overflow-y-auto pr-2">
-                      {hrStatusAssignments.length > 0 ? (
-                        hrStatusAssignments.map((hr, index) => (
-                          <div
-                            key={index}
-                            className="bg-muted/50 rounded-lg p-3 shadow-sm flex items-center justify-between"
-                          >
-                            <p className="font-medium text-sm truncate">
-                              {hr.name}
-                            </p>
-                            <div className="flex items-center gap-2">
-                              <span className="status-badge status-completed text-xs px-2.5 py-1">
-                                {hr.completed} Completions
-                              </span>
-                            </div>
-                          </div>
-                        ))
-                      ) : (
-                        <p className="text-sm text-muted-foreground text-center py-4">
-                          No data available
-                        </p>
-                      )}
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-            </div>
+                  {/* Date Range Picker - Only for accounts, session organizer, and admin */}
+                  {!!user && (hasAccountsPermissions((user as any)?.role) || (user as any)?.role === "admin") && (
+                    <div className="relative">
+                      <Button
+                        onClick={() => setShowDatePicker(!showDatePicker)}
+                        disabled={isDownloading}
+                        variant="outline"
+                        data-testid="button-download-data"
+                      >
+                        <Download className="mr-2 h-4 w-4" />
+                        {isDownloading ? "Downloading..." : "Download Data"}
+                      </Button>
 
-            {/* Right Column - 2 Cards Stacked */}
-            <div className="space-y-6">
-              {/* Team Lead - Team Members Section */}
-              {(user as any)?.role === "team_lead" && teamStats && (
-                <Card className="shadow-green-lg hover:shadow-green-bright transition-shadow duration-300 border border-border overflow-hidden">
-                  <CardHeader className="bg-gradient-to-r from-green-50 to-emerald-50 dark:from-green-950 dark:to-emerald-950 pb-4">
-                    <CardTitle className="flex items-center text-xl font-bold">
-                      <Users className="mr-2 h-5 w-5" />
-                      My Team: {teamStats.teamName}
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent className="space-y-4 pt-4">
-                    <div className="grid grid-cols-2 gap-3">
-                      <div className="bg-muted rounded-lg p-3 text-center">
-                        <p className="text-2xl font-bold text-primary">{teamStats.totalMembers}</p>
-                        <p className="text-xs text-muted-foreground">Team Members</p>
-                      </div>
-                      <div className="bg-muted rounded-lg p-3 text-center">
-                        <p className="text-2xl font-bold text-green-600">{teamStats.totalCompleted}</p>
-                        <p className="text-xs text-muted-foreground">Completed</p>
-                      </div>
-                    </div>
-                    <div className="space-y-2 max-h-[300px] overflow-y-auto">
-                      <h4 className="text-sm font-semibold">Team Members</h4>
-                      {teamStats.members?.map((member: any) => (
-                        <div key={member.id} className="flex items-center justify-between p-2 bg-muted/50 rounded-lg">
+                      {/* Dropdown for date selection */}
+                      {showDatePicker && (
+                        <div className="absolute right-0 mt-2 w-80 bg-white dark:bg-[#1a1a1a] border border-border rounded-lg shadow-lg z-50 p-4 space-y-3">
                           <div>
-                            <p className="text-sm font-medium">{member.fullName}</p>
-                            <p className="text-xs text-muted-foreground">{member.email}</p>
+                            <label className="text-sm font-medium">From Date</label>
+                            <Input
+                              type="date"
+                              value={fromDate}
+                              onChange={(e) => setFromDate(e.target.value)}
+                              min={dateRange?.minDate}
+                              max={dateRange?.maxDate}
+                              className="mt-1"
+                              data-testid="input-from-date"
+                            />
                           </div>
-                          <div className="text-right">
-                            <p className="text-sm font-bold text-primary">{member.totalLeads}</p>
-                            <p className="text-xs text-muted-foreground">leads</p>
+                          <div>
+                            <label className="text-sm font-medium">To Date</label>
+                            <Input
+                              type="date"
+                              value={toDate}
+                              onChange={(e) => setToDate(e.target.value)}
+                              min={dateRange?.minDate}
+                              max={dateRange?.maxDate}
+                              className="mt-1"
+                              data-testid="input-to-date"
+                            />
+                          </div>
+                          <div className="text-xs text-muted-foreground">
+                            Data available from{" "}
+                            <strong>{dateRange?.minDate}</strong> to{" "}
+                            <strong>{dateRange?.maxDate}</strong>
+                          </div>
+                          <div className="flex gap-2">
+                            <Button
+                              onClick={handleDownloadData}
+                              disabled={isDownloading}
+                              size="sm"
+                              className="flex-1"
+                              data-testid="button-download-confirm"
+                            >
+                              {isDownloading ? "Downloading..." : "Download"}
+                            </Button>
+                            <Button
+                              onClick={() => setShowDatePicker(false)}
+                              size="sm"
+                              variant="ghost"
+                              className="flex-1"
+                              data-testid="button-close-date-picker"
+                            >
+                              Cancel
+                            </Button>
                           </div>
                         </div>
-                      ))}
-                      {(!teamStats.members || teamStats.members.length === 0) && (
-                        <p className="text-sm text-muted-foreground text-center py-4">
-                          No team members assigned yet
-                        </p>
                       )}
                     </div>
-                  </CardContent>
-                </Card>
-              )}
+                  )}
 
-              {/* Notifications */}
-              {(user as any)?.role === "manager" ? (
-                <Card className="shadow-green-lg hover:shadow-green-bright transition-shadow duration-300 border border-border overflow-hidden">
-                  <CardHeader className="bg-gradient-to-r from-blue-50 to-purple-50 dark:from-blue-950 dark:to-purple-950 pb-4">
-                    <CardTitle className="flex items-center text-xl font-bold">
-                      <Bell className="mr-2 h-5 w-5" />
-                      Send Team Notification
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent className="space-y-4 pt-4 dashboard-notification-send max-h-[500px] overflow-y-auto">
-                    <div>
-                      <label className="text-sm font-medium mb-2 block">
-                        Title
-                      </label>
-                      <Input
-                        placeholder="Notification title..."
-                        value={notificationTitle}
-                        onChange={(e) => setNotificationTitle(e.target.value)}
-                        data-testid="input-notification-title"
-                      />
-                    </div>
-                    <div>
-                      <label className="text-sm font-medium mb-2 block">
-                        Message
-                      </label>
-                      <Textarea
-                        placeholder="Type your message here..."
-                        rows={4}
-                        value={notificationMessage}
-                        onChange={(e) => setNotificationMessage(e.target.value)}
-                        data-testid="textarea-notification-message"
-                      />
-                    </div>
-                    <div>
-                      <label className="text-sm font-medium mb-3 block">
-                        Send To
-                      </label>
-                      <div className="space-y-2">
-                        {[
-                          { value: "hr", label: "HR Team" },
-                          { value: "accounts", label: "Accounts Team" },
-                          { value: "admin", label: "Admin" },
-                        ].map((role) => (
-                          <div
-                            key={role.value}
-                            className="flex items-center space-x-2"
-                          >
-                            <Checkbox
-                              id={`role-${role.value}`}
-                              checked={selectedRoles.includes(role.value)}
-                              onCheckedChange={(checked) => {
-                                if (checked) {
-                                  setSelectedRoles([
-                                    ...selectedRoles,
-                                    role.value,
-                                  ]);
-                                } else {
-                                  setSelectedRoles(
-                                    selectedRoles.filter(
-                                      (r) => r !== role.value,
-                                    ),
-                                  );
-                                }
-                              }}
-                              data-testid={`checkbox-role-${role.value}`}
-                            />
-                            <label
-                              htmlFor={`role-${role.value}`}
-                              className="text-sm cursor-pointer"
-                            >
-                              {role.label}
-                            </label>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  </CardContent>
-                  <div className="border-t border-border p-4">
-                    <Button
-                      onClick={() =>
-                        sendNotificationMutation.mutate({
-                          title: notificationTitle,
-                          message: notificationMessage,
-                          roles: selectedRoles,
-                        })
-                      }
-                      disabled={
-                        !notificationTitle.trim() ||
-                        !notificationMessage.trim() ||
-                        selectedRoles.length === 0 ||
-                        sendNotificationMutation.isPending
-                      }
-                      className="w-full"
-                      size="default"
-                      data-testid="button-send-notification"
-                    >
-                      <Send className="w-4 h-4 mr-2" />
-                      {sendNotificationMutation.isPending
-                        ? "Sending..."
-                        : "Send"}
-                    </Button>
-                  </div>
-                </Card>
-              ) : (
-                <Card className="shadow-green-lg hover:shadow-green-bright transition-shadow duration-300 border border-border overflow-hidden">
-                  <CardHeader className="bg-gradient-to-r from-blue-50 to-purple-50 dark:from-blue-950 dark:to-purple-950 pb-4">
-                    <CardTitle className="text-xl font-bold">
-                      Kathaipom - Team Feed
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent className="p-0 h-[800px] overflow-hidden dashboard-notification-receive border-t">
-                    <KathaipomFeed />
-                  </CardContent>
-                </Card>
-              )}
-
-              {/* Recent Activity */}
-              <Card className="shadow-green-lg hover:shadow-green-bright transition-shadow duration-300 border border-border overflow-hidden">
-                <CardHeader className="bg-gradient-to-r from-blue-50 to-purple-50 dark:from-blue-950 dark:to-purple-950 pb-4">
-                  <CardTitle className="text-xl font-bold">
-                    Recent Activity
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="pt-4 px-4 pb-4 min-h-[320px] max-h-[450px] overflow-y-auto">
-                  {!(recentActivity as any[])?.length ? (
-                    <div className="flex items-center justify-center h-full text-center text-muted-foreground">
-                      <div>
-                        <p className="text-sm">No recent activity</p>
-                      </div>
-                    </div>
-                  ) : (
-                    <div className="space-y-3">
-                      {(recentActivity as any[])
-                        .slice(0, 12)
-                        .map((activity: any, index: number) => (
-                          <div
-                            key={index}
-                            className="p-3 bg-muted/50 rounded-lg border border-border shadow-sm hover:shadow-md transition-shadow"
-                          >
-                            <p className="font-medium text-sm text-foreground truncate">
-                              {activity.leadName}
-                            </p>
-                            <p className="text-muted-foreground text-xs mt-1.5 line-clamp-2">
-                              {activity.action}
-                            </p>
-                            <p className="text-muted-foreground text-xs mt-1.5">
-                              {new Date(
-                                activity.timestamp,
-                              ).toLocaleTimeString()}
-                            </p>
-                          </div>
-                        ))}
+                  {((user as any)?.role === "manager" || (user as any)?.role === "admin" || (user as any)?.role === "team_lead") && (
+                    <div className="flex items-center gap-2">
+                      <Filter className="h-4 w-4 text-muted-foreground" />
+                      <Select
+                        value={managerCategoryFilter}
+                        onValueChange={setManagerCategoryFilter}
+                      >
+                        <SelectTrigger className="w-48" data-testid="select-category-filter">
+                          <SelectValue placeholder="Filter by Category" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="all">All Categories</SelectItem>
+                          {categoryOptions.map((cat) => (
+                            <SelectItem key={cat} value={cat}>{cat}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
                     </div>
                   )}
-                </CardContent>
-              </Card>
-            </div>
-          </div>
-        </main>
+
+                  {((user as any)?.role === "manager" || (user as any)?.role === "admin" || (user as any)?.role === "team_lead") && (
+                    <Button
+                      onClick={() => setShowBulkUpload(true)}
+                      data-testid="button-bulk-upload"
+                    >
+                      <Upload className="mr-2 h-4 w-4" />
+                      Bulk Upload
+                    </Button>
+                  )}
+                </div>
+              </div>
+            </header>
+
+            {/* Dashboard Content */}
+            <main className="flex-1 overflow-y-auto p-6">
+              {/* Category indicator for HR users */}
+              {((user as any)?.role === "hr" || (user as any)?.role === "session-coordinator") && (
+                <div className="mb-4 flex items-center gap-2 text-sm text-muted-foreground">
+                  <Filter className="h-4 w-4" />
+                  <span>Showing data for category: <strong className="text-foreground">{selectedCategory}</strong></span>
+                </div>
+              )}
+              {/* Accounts users see all categories */}
+              {(user as any)?.role === "accounts" && (
+                <div className="mb-4 flex items-center gap-2 text-sm text-muted-foreground">
+                  <Filter className="h-4 w-4" />
+                  <span>Showing: <strong className="text-foreground">All Categories</strong> (completed leads from HR)</span>
+                </div>
+              )}
+
+              {/* Category indicator for managers when filtering */}
+              {((user as any)?.role === "manager" || (user as any)?.role === "admin") && managerCategoryFilter !== "all" && (
+                <div className="mb-4 flex items-center gap-2 text-sm text-muted-foreground">
+                  <Filter className="h-4 w-4" />
+                  <span>Filtering by category: <strong className="text-foreground">{managerCategoryFilter}</strong></span>
+                </div>
+              )}
+
+              {/* Quick Actions for Session Organizer */}
+              {isSessionOrganizer(user?.role) && (
+                <div className="mb-8">
+                  <div className="flex items-center space-x-2 mb-4">
+                    <Send className="w-5 h-5 text-primary" />
+                    <h2 className="text-xl font-bold">Quick Actions</h2>
+                  </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                    <Link href="/classes">
+                      <Card className="p-4 hover:shadow-green-md transition-all cursor-pointer border-blue-200 bg-blue-50/30 dark:bg-blue-900/10">
+                        <div className="flex flex-col items-center text-center space-y-2">
+                          <div className="p-3 bg-blue-100 dark:bg-blue-900/30 rounded-lg">
+                            <BookMarked className="w-6 h-6 text-blue-600" />
+                          </div>
+                          <span className="font-semibold text-blue-700 dark:text-blue-400">Manage Classes</span>
+                        </div>
+                      </Card>
+                    </Link>
+                    <Link href="/my-completion">
+                      <Card className="p-4 hover:shadow-green-md transition-all cursor-pointer border-cyan-200 bg-cyan-50/30 dark:bg-cyan-900/10">
+                        <div className="flex flex-col items-center text-center space-y-2">
+                          <div className="p-3 bg-cyan-100 dark:bg-cyan-900/30 rounded-lg">
+                            <History className="w-6 h-6 text-cyan-600" />
+                          </div>
+                          <span className="font-semibold text-cyan-700 dark:text-cyan-400">View History</span>
+                        </div>
+                      </Card>
+                    </Link>
+                    <Card className="p-4 hover:shadow-green-md transition-all cursor-pointer border-green-200 bg-green-50/30 dark:bg-green-900/10" onClick={() => setShowDatePicker(true)}>
+                      <div className="flex flex-col items-center text-center space-y-2">
+                        <div className="p-3 bg-green-100 dark:bg-green-900/30 rounded-lg">
+                          <FileText className="w-6 h-6 text-green-600" />
+                        </div>
+                        <span className="font-semibold text-green-700 dark:text-green-400">Export Data</span>
+                      </div>
+                    </Card>
+                    <Card className="p-4 hover:shadow-green-md transition-all cursor-pointer border-yellow-200 bg-yellow-50/30 dark:bg-yellow-900/10 opacity-50 cursor-not-allowed">
+                      <div className="flex flex-col items-center text-center space-y-2">
+                        <div className="p-3 bg-yellow-100 dark:bg-yellow-900/30 rounded-lg">
+                          <Bell className="w-6 h-6 text-yellow-600" />
+                        </div>
+                        <span className="font-semibold text-yellow-700 dark:text-yellow-400">Notify Students</span>
+                      </div>
+                    </Card>
+                  </div>
+                </div>
+              )}
+
+              {/* Metrics Grid */}
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+                <MetricsCard
+                  title={(user as any)?.role === "hr" || (user as any)?.role === "accounts" || (user as any)?.role === "session-coordinator" ? "My Leads" : "Total Leads"}
+                  value={
+                    (user as any)?.role === "hr" || (user as any)?.role === "accounts" || (user as any)?.role === "session-coordinator"
+                      ? (myLeadsData?.leads?.length || 0)
+                      : (metrics?.totalLeads || 0)
+                  }
+                  icon={Users}
+                  change={(user as any)?.role === "accounts" ? "All Categories" : ((user as any)?.role === "hr" || (user as any)?.role === "session-coordinator" ? selectedCategory : (managerCategoryFilter !== "all" ? managerCategoryFilter : "All Categories"))}
+                  changeLabel={(user as any)?.role === "accounts" ? "completed from HR" : ((user as any)?.role === "hr" || (user as any)?.role === "session-coordinator" ? "in your category" : (managerCategoryFilter !== "all" ? "category filter" : "showing all"))}
+                  loading={(user as any)?.role === "hr" || (user as any)?.role === "accounts" || (user as any)?.role === "session-coordinator" ? !myLeadsData : metricsLoading}
+                  testId="metric-total-leads"
+                />
+                {((user as any)?.role === "manager" || (user as any)?.role === "admin" || (user as any)?.role === "team_lead") && (
+                  <MetricsCard
+                    title="Active HR Users"
+                    value={metrics?.activeHR || 0}
+                    icon={Clock}
+                    change="HR team members active"
+                    changeLabel="currently active"
+                    changeType="positive"
+                    loading={!hrUsersData}
+                    testId="metric-active-hr"
+                  />
+                )}
+                {((user as any)?.role === "manager" || (user as any)?.role === "admin" || (user as any)?.role === "team_lead") && (
+                  <MetricsCard
+                    title="Completed"
+                    value={metrics?.completedLeads || 0}
+                    icon={CheckCircle}
+                    change={managerCategoryFilter !== "all" ? managerCategoryFilter : "All Categories"}
+                    changeLabel={managerCategoryFilter !== "all" ? "category filter" : "showing all"}
+                    loading={metricsLoading}
+                    testId="metric-completed"
+                  />
+                )}
+                {((user as any)?.role === "manager" || (user as any)?.role === "admin" || (user as any)?.role === "team_lead") && (
+                  <MetricsCard
+                    title="Revenue Pipeline"
+                    value={formatRevenueDisplay(metrics?.revenue || 0)}
+                    icon={DollarSign}
+                    change={managerCategoryFilter !== "all" ? managerCategoryFilter : "All Categories"}
+                    changeLabel={managerCategoryFilter !== "all" ? "category filter" : "total collected"}
+                    loading={metricsLoading}
+                    testId="metric-revenue"
+                  />
+                )}
+                {/* Available Leads Card for HR */}
+                {((user as any)?.role === "hr" || (user as any)?.role === "session-coordinator") && (
+                  <MetricsCard
+                    title="Available to Claim"
+                    value={
+                      (metrics?.statusDistribution?.new || 0) +
+                      (metrics?.statusDistribution?.register || 0)
+                    }
+                    icon={Search}
+                    change={selectedCategory}
+                    changeLabel="in current category"
+                    loading={metricsLoading}
+                    testId="metric-available-leads"
+                  />
+                )}
+              </div>
+
+              {/* Recent Sessions Table for Session Organizers */}
+              {isSessionOrganizer(user?.role) && (
+                <Card className="mb-8 shadow-green-lg border border-border overflow-hidden">
+                  <CardHeader className="bg-gradient-to-r from-emerald-50 to-teal-50 dark:from-emerald-950 dark:to-teal-950 pb-4">
+                    <div className="flex items-center justify-between">
+                      <CardTitle className="flex items-center text-xl font-bold">
+                        <BookCheck className="mr-2 h-5 w-5 text-emerald-600" />
+                        Scheduled Sessions
+                      </CardTitle>
+                      <Link href="/my-sessions">
+                        <Button variant="ghost" size="sm" className="text-emerald-700 dark:text-emerald-400 font-semibold hover:bg-emerald-100/50">
+                          View All Sessions →
+                        </Button>
+                      </Link>
+                    </div>
+                  </CardHeader>
+                  <CardContent className="p-0">
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-sm text-left">
+                        <thead className="bg-muted/50 text-muted-foreground font-medium border-b">
+                          <tr>
+                            <th className="px-6 py-4">Student</th>
+                            <th className="px-6 py-4">Status</th>
+                            <th className="px-6 py-4">Timing</th>
+                            <th className="px-6 py-4 text-right">Actions</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y">
+                          {(myLeadsData?.leads as any[])?.filter(l => l.status === 'scheduled').slice(0, 5).map((lead) => (
+                            <tr key={lead.id} className="hover:bg-muted/30 transition-colors">
+                              <td className="px-6 py-4">
+                                <div className="font-semibold text-foreground">{lead.name}</div>
+                                <div className="text-xs text-muted-foreground">{lead.email}</div>
+                              </td>
+                              <td className="px-6 py-4 text-xs">
+                                <span className="status-badge status-scheduled px-2 py-1">
+                                  {lead.status.replace('_', ' ')}
+                                </span>
+                              </td>
+                              <td className="px-6 py-4">
+                                <div className="text-foreground">{lead.sessionDays}</div>
+                                <div className="text-xs text-muted-foreground font-medium">{lead.timing}</div>
+                              </td>
+                              <td className="px-6 py-4 text-right">
+                                <Button
+                                  size="sm"
+                                  className="bg-primary hover:bg-primary/90 h-8"
+                                  onClick={async () => {
+                                    try {
+                                      await apiRequest("PUT", `/api/leads/${lead.id}`, {
+                                        status: "completed",
+                                        changeReason: "Class created from dashboard"
+                                      });
+                                      queryClient.invalidateQueries({ queryKey: ["/api/my/leads"] });
+                                      queryClient.invalidateQueries({ queryKey: ["/api/my/completed"] });
+                                      toast({
+                                        title: "Class Created",
+                                        description: `Class for ${lead.name} has been initiated.`
+                                      });
+                                    } catch (e) {
+                                      toast({
+                                        title: "Error",
+                                        description: "Failed to create class",
+                                        variant: "destructive"
+                                      });
+                                    }
+                                  }}
+                                >
+                                  <BookCheck className="w-3 h-3 mr-1" />
+                                  Create Class
+                                </Button>
+                              </td>
+                            </tr>
+                          ))}
+                          {(!(myLeadsData?.leads as any[])?.filter(l => l.status === 'scheduled').length) && (
+                            <tr>
+                              <td colSpan={4} className="px-6 py-12 text-center text-muted-foreground">
+                                No scheduled sessions found.
+                              </td>
+                            </tr>
+                          )}
+                        </tbody>
+                      </table>
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
+
+              {/* Modern Dashboard Layout */}
+              <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
+                {/* Left Column - Spans 2 rows */}
+                <div className="lg:col-span-2 space-y-6">
+                  {/* Pie Chart - Wider */}
+                  <Card className="shadow-green-lg hover:shadow-green-bright transition-shadow duration-300 border border-border overflow-hidden">
+                    <CardHeader className="bg-gradient-to-r from-blue-50 to-purple-50 dark:from-blue-950 dark:to-purple-950 pb-4">
+                      <CardTitle className="text-xl font-bold">
+                        My Lead Status
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent className="pt-6 px-6 pb-6 min-h-[390px] flex items-center justify-center">
+                      <StatusChart data={roleSpecificMetrics} />
+                    </CardContent>
+                  </Card>
+
+                  {/* Allocation Strategy - Full Width Bottom */}
+                  <Card className="shadow-green-lg hover:shadow-green-bright transition-shadow duration-300 border border-border overflow-hidden">
+                    <CardHeader className="bg-gradient-to-r from-blue-50 to-purple-50 dark:from-blue-950 dark:to-purple-950 pb-4">
+                      <CardTitle className="text-xl font-bold">
+                        Allocation Strategy
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent className="space-y-3 pt-4 pb-3 px-4 dashboard-allocation-card min-h-[550px]">
+                      <div className="flex items-center justify-between p-3 bg-muted rounded-lg shadow-sm">
+                        <div>
+                          <p className="text-sm font-medium">Current Strategy</p>
+                          <p className="text-sm text-muted-foreground">
+                            Registration Based
+                          </p>
+                        </div>
+                        <span className="status-badge status-ready-for-class text-sm px-3 py-1.5">
+                          Active
+                        </span>
+                      </div>
+
+                      <div className="space-y-3">
+                        <h4 className="text-sm font-semibold">
+                          HR Status Assignment
+                        </h4>
+                        <div className="space-y-2 max-h-[600px] overflow-y-auto pr-2">
+                          {hrStatusAssignments.length > 0 ? (
+                            hrStatusAssignments.map((hr, index) => (
+                              <div
+                                key={index}
+                                className="bg-muted/50 rounded-lg p-3 shadow-sm flex items-center justify-between"
+                              >
+                                <p className="font-medium text-sm truncate">
+                                  {hr.name}
+                                </p>
+                                <div className="flex items-center gap-2">
+                                  <span className="status-badge status-completed text-xs px-2.5 py-1">
+                                    {hr.completed} Completions
+                                  </span>
+                                </div>
+                              </div>
+                            ))
+                          ) : (
+                            <p className="text-sm text-muted-foreground text-center py-4">
+                              No data available
+                            </p>
+                          )}
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+                </div>
+
+                {/* Right Column - 2 Cards Stacked */}
+                <div className="space-y-6">
+                  {/* Team Lead - Team Members Section */}
+                  {(user as any)?.role === "team_lead" && teamStats && (
+                    <Card className="shadow-green-lg hover:shadow-green-bright transition-shadow duration-300 border border-border overflow-hidden">
+                      <CardHeader className="bg-gradient-to-r from-green-50 to-emerald-50 dark:from-green-950 dark:to-emerald-950 pb-4">
+                        <CardTitle className="flex items-center text-xl font-bold">
+                          <Users className="mr-2 h-5 w-5" />
+                          My Team: {teamStats.teamName}
+                        </CardTitle>
+                      </CardHeader>
+                      <CardContent className="space-y-4 pt-4">
+                        <div className="grid grid-cols-2 gap-3">
+                          <div className="bg-muted rounded-lg p-3 text-center">
+                            <p className="text-2xl font-bold text-primary">{teamStats.totalMembers}</p>
+                            <p className="text-xs text-muted-foreground">Team Members</p>
+                          </div>
+                          <div className="bg-muted rounded-lg p-3 text-center">
+                            <p className="text-2xl font-bold text-green-600">{teamStats.totalCompleted}</p>
+                            <p className="text-xs text-muted-foreground">Completed</p>
+                          </div>
+                        </div>
+                        <div className="space-y-2 max-h-[300px] overflow-y-auto">
+                          <h4 className="text-sm font-semibold">Team Members</h4>
+                          {teamStats.members?.map((member: any) => (
+                            <div key={member.id} className="flex items-center justify-between p-2 bg-muted/50 rounded-lg">
+                              <div>
+                                <p className="text-sm font-medium">{member.fullName}</p>
+                                <p className="text-xs text-muted-foreground">{member.email}</p>
+                              </div>
+                              <div className="text-right">
+                                <p className="text-sm font-bold text-primary">{member.totalLeads}</p>
+                                <p className="text-xs text-muted-foreground">leads</p>
+                              </div>
+                            </div>
+                          ))}
+                          {(!teamStats.members || teamStats.members.length === 0) && (
+                            <p className="text-sm text-muted-foreground text-center py-4">
+                              No team members assigned yet
+                            </p>
+                          )}
+                        </div>
+                      </CardContent>
+                    </Card>
+                  )}
+
+                  {/* Notifications */}
+                  {(user as any)?.role === "manager" ? (
+                    <Card className="shadow-green-lg hover:shadow-green-bright transition-shadow duration-300 border border-border overflow-hidden">
+                      <CardHeader className="bg-gradient-to-r from-blue-50 to-purple-50 dark:from-blue-950 dark:to-purple-950 pb-4">
+                        <CardTitle className="flex items-center text-xl font-bold">
+                          <Bell className="mr-2 h-5 w-5" />
+                          Send Team Notification
+                        </CardTitle>
+                      </CardHeader>
+                      <CardContent className="space-y-4 pt-4 dashboard-notification-send max-h-[500px] overflow-y-auto">
+                        <div>
+                          <label className="text-sm font-medium mb-2 block">
+                            Title
+                          </label>
+                          <Input
+                            placeholder="Notification title..."
+                            value={notificationTitle}
+                            onChange={(e) => setNotificationTitle(e.target.value)}
+                            data-testid="input-notification-title"
+                          />
+                        </div>
+                        <div>
+                          <label className="text-sm font-medium mb-2 block">
+                            Message
+                          </label>
+                          <Textarea
+                            placeholder="Type your message here..."
+                            rows={4}
+                            value={notificationMessage}
+                            onChange={(e) => setNotificationMessage(e.target.value)}
+                            data-testid="textarea-notification-message"
+                          />
+                        </div>
+                        <div>
+                          <label className="text-sm font-medium mb-3 block">
+                            Send To
+                          </label>
+                          <div className="space-y-2">
+                            {[
+                              { value: "hr", label: "HR Team" },
+                              { value: "accounts", label: "Accounts Team" },
+                              { value: "admin", label: "Admin" },
+                            ].map((role) => (
+                              <div
+                                key={role.value}
+                                className="flex items-center space-x-2"
+                              >
+                                <Checkbox
+                                  id={`role-${role.value}`}
+                                  checked={selectedRoles.includes(role.value)}
+                                  onCheckedChange={(checked) => {
+                                    if (checked) {
+                                      setSelectedRoles([
+                                        ...selectedRoles,
+                                        role.value,
+                                      ]);
+                                    } else {
+                                      setSelectedRoles(
+                                        selectedRoles.filter(
+                                          (r) => r !== role.value,
+                                        ),
+                                      );
+                                    }
+                                  }}
+                                  data-testid={`checkbox-role-${role.value}`}
+                                />
+                                <label
+                                  htmlFor={`role-${role.value}`}
+                                  className="text-sm cursor-pointer"
+                                >
+                                  {role.label}
+                                </label>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      </CardContent>
+                      <div className="border-t border-border p-4">
+                        <Button
+                          onClick={() =>
+                            sendNotificationMutation.mutate({
+                              title: notificationTitle,
+                              message: notificationMessage,
+                              roles: selectedRoles,
+                            })
+                          }
+                          disabled={
+                            !notificationTitle.trim() ||
+                            !notificationMessage.trim() ||
+                            selectedRoles.length === 0 ||
+                            sendNotificationMutation.isPending
+                          }
+                          className="w-full"
+                          size="default"
+                          data-testid="button-send-notification"
+                        >
+                          <Send className="w-4 h-4 mr-2" />
+                          {sendNotificationMutation.isPending
+                            ? "Sending..."
+                            : "Send"}
+                        </Button>
+                      </div>
+                    </Card>
+                  ) : (
+                    <Card className="shadow-green-lg hover:shadow-green-bright transition-shadow duration-300 border border-border overflow-hidden">
+                      <CardHeader className="bg-gradient-to-r from-blue-50 to-purple-50 dark:from-blue-950 dark:to-purple-950 pb-4">
+                        <CardTitle className="text-xl font-bold">
+                          Kathaipom - Team Feed
+                        </CardTitle>
+                      </CardHeader>
+                      <CardContent className="p-0 h-[800px] overflow-hidden dashboard-notification-receive border-t">
+                        <KathaipomFeed />
+                      </CardContent>
+                    </Card>
+                  )}
+
+                  {/* Recent Activity */}
+                  <Card className="shadow-green-lg hover:shadow-green-bright transition-shadow duration-300 border border-border overflow-hidden">
+                    <CardHeader className="bg-gradient-to-r from-blue-50 to-purple-50 dark:from-blue-950 dark:to-purple-950 pb-4">
+                      <CardTitle className="text-xl font-bold">
+                        Recent Activity
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent className="pt-4 px-4 pb-4 min-h-[320px] max-h-[450px] overflow-y-auto">
+                      {!(recentActivity as any[])?.length ? (
+                        <div className="flex items-center justify-center h-full text-center text-muted-foreground">
+                          <div>
+                            <p className="text-sm">No recent activity</p>
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="space-y-3">
+                          {(recentActivity as any[])
+                            .slice(0, 12)
+                            .map((activity: any, index: number) => (
+                              <div
+                                key={index}
+                                className="p-3 bg-muted/50 rounded-lg border border-border shadow-sm hover:shadow-md transition-shadow"
+                              >
+                                <p className="font-medium text-sm text-foreground truncate">
+                                  {activity.leadName}
+                                </p>
+                                <p className="text-muted-foreground text-xs mt-1.5 line-clamp-2">
+                                  {activity.action}
+                                </p>
+                                <p className="text-muted-foreground text-xs mt-1.5">
+                                  {new Date(
+                                    activity.timestamp,
+                                  ).toLocaleTimeString()}
+                                </p>
+                              </div>
+                            ))}
+                        </div>
+                      )}
+                    </CardContent>
+                  </Card>
+                </div>
+              </div>
+            </main>
+          </>
+        )}
       </div>
 
       {/* Modals */}

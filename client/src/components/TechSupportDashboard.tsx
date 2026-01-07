@@ -1,0 +1,190 @@
+import { useQuery } from "@tanstack/react-query";
+import {
+    Users,
+    BookMarked,
+    History,
+    Download,
+    Bell,
+    Layout,
+    CheckCircle,
+    Clock,
+    Calendar
+} from "lucide-react";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { format } from "date-fns";
+import { Link } from "wouter";
+
+interface TechSupportMetrics {
+    totalClasses: number;
+    totalStudents: number;
+    recentRecords: {
+        studentName: string;
+        className: string;
+        date: string;
+        status: string;
+        markedAt: string;
+    }[];
+}
+
+export default function TechSupportDashboard({ userDisplayName }: { userDisplayName: string }) {
+    const { data: metrics, isLoading } = useQuery<TechSupportMetrics>({
+        queryKey: ["/api/tech-support/dashboard"],
+    });
+
+    if (isLoading) {
+        return (
+            <div className="flex items-center justify-center p-12">
+                <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-500"></div>
+            </div>
+        );
+    }
+
+    return (
+        <div className="space-y-8 animate-in fade-in duration-500">
+            {/* Welcome Header */}
+            <div className="flex items-center gap-3">
+                <div className="p-2 bg-slate-100 dark:bg-slate-800 rounded-lg">
+                    <Clock className="h-6 w-6 text-slate-600 dark:text-slate-400" />
+                </div>
+                <h1 className="text-3xl font-bold text-slate-900 dark:text-white">
+                    Dashboard <span className="text-slate-500 font-medium text-2xl ml-2">Welcome back, {userDisplayName}!</span>
+                </h1>
+            </div>
+
+            {/* Top Metrics Cards */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                {/* Total Classes - Blue */}
+                <Card className="bg-blue-600 text-white border-none shadow-lg transform hover:scale-[1.02] transition-all">
+                    <CardContent className="pt-6 flex flex-col items-center justify-center text-center space-y-4">
+                        <Layout className="h-12 w-12 opacity-80" />
+                        <div className="space-y-1">
+                            <div className="text-5xl font-bold">{metrics?.totalClasses || 0}</div>
+                            <div className="text-lg opacity-90 font-medium uppercase tracking-wider">Total Classes</div>
+                        </div>
+                    </CardContent>
+                </Card>
+
+                {/* Total Students - Cyan */}
+                <Card className="bg-[#00CFE8] text-white border-none shadow-lg transform hover:scale-[1.02] transition-all">
+                    <CardContent className="pt-6 flex flex-col items-center justify-center text-center space-y-4">
+                        <Users className="h-12 w-12 opacity-80" />
+                        <div className="space-y-1">
+                            <div className="text-5xl font-bold">{metrics?.totalStudents || 0}</div>
+                            <div className="text-lg opacity-90 font-medium uppercase tracking-wider">Total Students</div>
+                        </div>
+                    </CardContent>
+                </Card>
+
+                {/* Recent Records - Green */}
+                <Card className="bg-[#28C76F] text-white border-none shadow-lg transform hover:scale-[1.02] transition-all">
+                    <CardContent className="pt-6 flex flex-col items-center justify-center text-center space-y-4">
+                        <CheckCircle className="h-12 w-12 opacity-80" />
+                        <div className="space-y-1">
+                            <div className="text-5xl font-bold">{metrics?.recentRecords.length || 0}</div>
+                            <div className="text-lg opacity-90 font-medium uppercase tracking-wider">Recent Records</div>
+                        </div>
+                    </CardContent>
+                </Card>
+            </div>
+
+            {/* Quick Actions Grid */}
+            <div className="space-y-4">
+                <div className="flex items-center gap-2">
+                    <Clock className="w-5 h-5 text-indigo-500" />
+                    <h2 className="text-xl font-bold text-slate-800 dark:text-slate-200">Quick Actions</h2>
+                </div>
+                <div className="grid grid-cols-2 lg:grid-cols-4 gap-6">
+                    <Link href="/classes">
+                        <div className="group cursor-pointer">
+                            <div className="aspect-square flex flex-col items-center justify-center border-2 border-blue-400 bg-blue-50/50 dark:bg-blue-900/10 rounded-2xl p-6 transition-all group-hover:bg-blue-100 dark:group-hover:bg-blue-900/20 group-hover:shadow-lg">
+                                <BookMarked className="h-10 w-10 text-blue-500 mb-3" />
+                                <span className="text-blue-600 dark:text-blue-400 font-bold uppercase text-xs tracking-widest text-center">Manage Classes</span>
+                            </div>
+                        </div>
+                    </Link>
+
+                    <div className="group cursor-pointer">
+                        <div className="aspect-square flex flex-col items-center justify-center border-2 border-cyan-400 bg-cyan-50/50 dark:bg-cyan-900/10 rounded-2xl p-6 transition-all group-hover:bg-cyan-100 dark:group-hover:bg-cyan-900/20 group-hover:shadow-lg">
+                            <History className="h-10 w-10 text-cyan-500 mb-3" />
+                            <span className="text-cyan-600 dark:text-cyan-400 font-bold uppercase text-xs tracking-widest text-center">View History</span>
+                        </div>
+                    </div>
+
+                    <div className="group cursor-pointer">
+                        <div className="aspect-square flex flex-col items-center justify-center border-2 border-green-400 bg-green-50/50 dark:bg-green-900/10 rounded-2xl p-6 transition-all group-hover:bg-green-100 dark:group-hover:bg-green-900/20 group-hover:shadow-lg">
+                            <Download className="h-10 w-10 text-green-500 mb-3" />
+                            <span className="text-green-600 dark:text-green-400 font-bold uppercase text-xs tracking-widest text-center">Export Data</span>
+                        </div>
+                    </div>
+
+                    <div className="group cursor-not-allowed opacity-60">
+                        <div className="aspect-square flex flex-col items-center justify-center border-2 border-yellow-400 bg-yellow-50/50 dark:bg-yellow-900/10 rounded-2xl p-6">
+                            <Bell className="h-10 w-10 text-yellow-500 mb-3" />
+                            <span className="text-yellow-600 dark:text-yellow-400 font-bold uppercase text-xs tracking-widest text-center">Notify Students</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            {/* Recent Records Table */}
+            <div className="space-y-4">
+                <div className="flex items-center gap-2">
+                    <Calendar className="w-5 h-5 text-indigo-500" />
+                    <h2 className="text-xl font-bold text-slate-800 dark:text-slate-200">Recent Attendance Records</h2>
+                </div>
+                <Card className="border-none shadow-xl bg-white/80 dark:bg-slate-900/80 backdrop-blur-sm overflow-hidden rounded-2xl ring-1 ring-slate-100 dark:ring-slate-800">
+                    <div className="overflow-x-auto">
+                        <table className="w-full text-left border-collapse">
+                            <thead>
+                                <tr className="bg-slate-50 dark:bg-slate-800/50 border-b border-slate-100 dark:border-slate-800">
+                                    <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-widest">Student</th>
+                                    <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-widest">Class</th>
+                                    <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-widest">Date</th>
+                                    <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-widest">Status</th>
+                                    <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-widest">Marked At</th>
+                                </tr>
+                            </thead>
+                            <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                                {metrics?.recentRecords.map((record, idx) => (
+                                    <tr key={idx} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/30 transition-colors group">
+                                        <td className="px-6 py-4">
+                                            <div className="font-bold text-slate-700 dark:text-slate-300">{record.studentName}</div>
+                                        </td>
+                                        <td className="px-6 py-4">
+                                            <div className="text-slate-600 dark:text-slate-400 font-medium bg-slate-100 dark:bg-slate-800 px-3 py-1 rounded-full text-xs inline-block">
+                                                {record.className}
+                                            </div>
+                                        </td>
+                                        <td className="px-6 py-4 text-slate-600 dark:text-slate-400 text-sm">
+                                            {format(new Date(record.date), 'MMM dd, yyyy')}
+                                        </td>
+                                        <td className="px-6 py-4">
+                                            <span className={`px-3 py-1 rounded-md text-[10px] font-bold uppercase tracking-wider ${record.status === 'Present'
+                                                    ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400'
+                                                    : 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400'
+                                                }`}>
+                                                {record.status}
+                                            </span>
+                                        </td>
+                                        <td className="px-6 py-4 text-slate-500 dark:text-slate-500 text-xs font-medium">
+                                            {format(new Date(record.markedAt), 'MMM dd, yyyy h:mm a')}
+                                        </td>
+                                    </tr>
+                                ))}
+                                {metrics?.recentRecords.length === 0 && (
+                                    <tr>
+                                        <td colSpan={5} className="px-6 py-12 text-center text-slate-400 italic">
+                                            No recent records found
+                                        </td>
+                                    </tr>
+                                )}
+                            </tbody>
+                        </table>
+                    </div>
+                </Card>
+            </div>
+        </div>
+    );
+}

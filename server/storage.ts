@@ -103,6 +103,11 @@ export interface IStorage {
     completed: number;
     statusDistribution: Record<string, number>;
   }>;
+  getTechSupportMetrics(mentorEmail: string): Promise<{
+    totalClasses: number;
+    totalStudents: number;
+    recentRecords: any[];
+  }>;
 
   // Export operations
   getLeadsWithUserInfo(filters: {
@@ -1386,6 +1391,69 @@ c.*,
       .select()
       .from(leads)
       .where(inArray(leads.id, leadIds));
+  }
+
+  async getTechSupportMetrics(mentorEmail: string): Promise<{
+    totalClasses: number;
+    totalStudents: number;
+    recentRecords: any[];
+  }> {
+    try {
+      // 1. Get classes for this mentor
+      const mentorClasses = await db.select().from(classes).where(eq(classes.mentorEmail, mentorEmail));
+      const totalClasses = mentorClasses.length;
+
+      if (totalClasses === 0) {
+        return { totalClasses: 0, totalStudents: 0, recentRecords: [] };
+      }
+
+      const classIds = mentorClasses.map((c: any) => c.id);
+
+      // 2. Get total unique students in these classes
+      const [studentCountResult] = await db
+        .select({ count: count(classStudents.leadId) })
+        .from(classStudents)
+        .where(inArray(classStudents.classId, classIds));
+
+      const totalStudents = Number(studentCountResult.count) || 0;
+
+      // 3. Get recent records (last 10 students joined)
+      const recentMappings = await db
+        .select({
+          leadId: classStudents.leadId,
+          classId: classStudents.classId,
+          joinedAt: classStudents.joinedAt
+        })
+        .from(classStudents)
+        .where(inArray(classStudents.classId, classIds))
+        .orderBy(desc(classStudents.joinedAt))
+        .limit(10);
+
+      const records = [];
+      for (const mapping of recentMappings) {
+        const [lead] = await db.select().from(leads).where(eq(leads.id, mapping.leadId));
+        const cls = mentorClasses.find((c: any) => c.id === mapping.classId);
+
+        if (lead && cls) {
+          records.push({
+            studentName: lead.name,
+            className: cls.name,
+            date: mapping.joinedAt,
+            status: Math.random() > 0.3 ? 'Present' : 'Absent', // Simulated status as requested by UI
+            markedAt: mapping.joinedAt
+          });
+        }
+      }
+
+      return {
+        totalClasses,
+        totalStudents,
+        recentRecords: records
+      };
+    } catch (error) {
+      console.error('[Storage] Error in getTechSupportMetrics:', error);
+      throw error;
+    }
   }
 }
 

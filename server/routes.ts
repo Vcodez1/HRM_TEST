@@ -2593,6 +2593,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  app.get('/api/tech-support/dashboard', isAuthenticated, async (req: any, res) => {
+    try {
+      const user = req.user;
+      if (!user || (user.role !== 'tech-support' && user.role !== 'admin')) {
+        return res.status(403).json({ message: "Forbidden: Tech support access only" });
+      }
+
+      const metrics = await storage.getTechSupportMetrics(user.email);
+      res.json(metrics);
+    } catch (error) {
+      console.error("Error fetching tech support dashboard:", error);
+      res.status(500).json({ message: "Failed to fetch tech support dashboard" });
+    }
+  });
+
   // Export routes
   app.get('/api/export', isAuthenticated, async (req: any, res) => {
     try {
