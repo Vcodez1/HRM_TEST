@@ -4,9 +4,10 @@ import express, { type Request, Response, NextFunction } from "express";
 import { registerRoutes } from "./routes";
 import { log } from "./utils";
 import { serveStatic } from "./static";
-import { storage } from "./storage";
+import { storage, db } from "./storage";
 import { hlsStreamer } from "./streaming";
 import bcrypt from "bcrypt";
+import { sql } from "drizzle-orm";
 
 const app = express();
 app.use(express.json());
@@ -44,6 +45,21 @@ app.use((req, res, next) => {
 
   next();
 });
+
+// Run database migrations to ensure schema is up to date
+async function runDatabaseMigrations() {
+  console.log('[Migration] Checking database schema...');
+  try {
+    // Add missing columns to classes table
+    await db.execute(sql`ALTER TABLE classes ADD COLUMN IF NOT EXISTS subject TEXT`);
+    await db.execute(sql`ALTER TABLE classes ADD COLUMN IF NOT EXISTS mentor_email TEXT`);
+    await db.execute(sql`ALTER TABLE classes ADD COLUMN IF NOT EXISTS mode TEXT`);
+    console.log('[Migration] Classes table schema updated successfully');
+  } catch (error: any) {
+    console.error('[Migration] Error updating schema:', error.message);
+    // Don't fail startup, the columns might already exist
+  }
+}
 
 // Initialize manager user
 async function initializeManagerUser() {
@@ -93,6 +109,9 @@ async function initializeManagerUser() {
 }
 
 (async () => {
+  // Run database migrations first
+  await runDatabaseMigrations();
+
   // Initialize manager user before starting the server
   await initializeManagerUser();
 
