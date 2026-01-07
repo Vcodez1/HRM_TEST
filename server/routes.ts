@@ -4187,5 +4187,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Get recent leads (most recently updated)
+  app.get('/api/leads/recent', isAuthenticated, async (req: any, res) => {
+    try {
+      const leadsResult = await storage.searchLeads({ limit: 10 });
+      res.json(leadsResult.leads || []);
+    } catch (error: any) {
+      console.error('[leads/recent] Error:', error);
+      res.status(500).json({ message: 'Failed to fetch recent leads', error: error.message });
+    }
+  });
+
   return httpServer;
 }
