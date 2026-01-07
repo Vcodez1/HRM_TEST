@@ -403,8 +403,12 @@ export default function MyClassesPage() {
                                         </Button>
                                     </div>
                                     <div className="flex gap-2">
-                                        <Button variant="outline" className="flex-1 rounded-xl h-11 border-amber-400/30 text-amber-600 hover:bg-amber-50 gap-2">
-                                            <Pencil className="h-4 w-4" /> Edit
+                                        <Button
+                                            variant="outline"
+                                            className="flex-1 rounded-xl h-11 border-amber-400/30 text-amber-600 hover:bg-amber-50 gap-2"
+                                            onClick={() => setLocation(`/classes/${cls.id}/students`)}
+                                        >
+                                            <Award className="h-4 w-4" /> Mark
                                         </Button>
                                         <Button
                                             variant="outline"
