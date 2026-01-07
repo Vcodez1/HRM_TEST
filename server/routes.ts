@@ -3973,16 +3973,25 @@ export async function registerRoutes(app: Express): Promise<Server> {
           const subject = cls.subject || cls.name || 'Student';
 
           // Sort ALL mappings by joinedAt to maintain sequential order
-          const sortedMappings = mappings.sort((a, b) =>
-            new Date(a.joinedAt!).getTime() - new Date(b.joinedAt!).getTime()
-          );
+          // Handle null/undefined joinedAt by using current time as fallback
+          const sortedMappings = mappings.sort((a, b) => {
+            const timeA = a.joinedAt ? new Date(a.joinedAt).getTime() : Date.now();
+            const timeB = b.joinedAt ? new Date(b.joinedAt).getTime() : Date.now();
+            return timeA - timeB;
+          });
 
           // Generate IDs for all students to ensure proper sequence
           for (let i = 0; i < sortedMappings.length; i++) {
-            const studentId = `${subject}-${(i + 1).toString().padStart(2, '0')}`;
-            // Only update if the ID is different or missing
-            if (sortedMappings[i].studentId !== studentId) {
-              await storage.updateStudentId(classId, sortedMappings[i].leadId, studentId);
+            try {
+              const studentId = `${subject}-${(i + 1).toString().padStart(2, '0')}`;
+              // Only update if the ID is different or missing
+              if (sortedMappings[i].studentId !== studentId) {
+                await storage.updateStudentId(classId, sortedMappings[i].leadId, studentId);
+                console.log(`[student-mappings] Generated ID ${studentId} for lead ${sortedMappings[i].leadId}`);
+              }
+            } catch (err) {
+              console.error(`[student-mappings] Failed to generate ID for lead ${sortedMappings[i].leadId}:`, err);
+              // Continue with other students even if one fails
             }
           }
 
