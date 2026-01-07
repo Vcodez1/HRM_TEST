@@ -162,7 +162,7 @@ export interface IStorage {
   getClass(id: number): Promise<Class | undefined>;
   updateClass(id: number, updates: Partial<Class>): Promise<Class>;
   deleteClass(id: number): Promise<void>;
-  addStudentToClass(classId: number, leadId: number): Promise<ClassStudent>;
+  addStudentToClass(classId: number, leadId: number): Promise<ClassStudent | null>;
   removeStudentFromClass(classId: number, leadId: number): Promise<void>;
   getClassStudents(classId: number): Promise<Lead[]>;
   getClassStudentMappings(classId: number): Promise<ClassStudent[]>;
@@ -1434,12 +1434,24 @@ c.*,
     await db.delete(classes).where(eq(classes.id, id));
   }
 
-  async addStudentToClass(classId: number, leadId: number): Promise<ClassStudent> {
-    const [newMapping] = await db
-      .insert(classStudents)
-      .values({ classId, leadId })
-      .returning();
-    return newMapping;
+  async addStudentToClass(classId: number, leadId: number): Promise<ClassStudent | null> {
+    try {
+      console.log(`[addStudentToClass] Adding lead ${leadId} to class ${classId}`);
+      const [newMapping] = await db
+        .insert(classStudents)
+        .values({ classId, leadId })
+        .onConflictDoNothing()
+        .returning();
+      if (newMapping) {
+        console.log(`[addStudentToClass] Successfully added lead ${leadId} to class ${classId}`);
+      } else {
+        console.log(`[addStudentToClass] Lead ${leadId} already in class ${classId} (no conflict)`);
+      }
+      return newMapping || null;
+    } catch (error) {
+      console.error(`[addStudentToClass] Error adding lead ${leadId} to class ${classId}:`, error);
+      throw error;
+    }
   }
 
   async removeStudentFromClass(classId: number, leadId: number): Promise<void> {
@@ -1464,12 +1476,17 @@ c.*,
   }
 
   async isStudentInAnyClass(leadId: number): Promise<boolean> {
-    const [mapping] = await db
-      .select()
-      .from(classStudents)
-      .where(eq(classStudents.leadId, leadId))
-      .limit(1);
-    return !!mapping;
+    try {
+      const [mapping] = await db
+        .select()
+        .from(classStudents)
+        .where(eq(classStudents.leadId, leadId))
+        .limit(1);
+      return !!mapping;
+    } catch (error) {
+      console.error('[isStudentInAnyClass] Error checking lead', leadId, error);
+      return false; // Return false to allow enrollment attempt on error
+    }
   }
 
   async getClassStudentMappings(classId: number): Promise<ClassStudent[]> {

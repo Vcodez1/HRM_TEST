@@ -4139,16 +4139,40 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const classId = parseInt(req.params.id);
       const { leadIds } = req.body;
 
+      console.log(`[enroll-students] Enrolling ${leadIds?.length || 0} students in class ${classId}`);
+
       if (!Array.isArray(leadIds) || leadIds.length === 0) {
         return res.status(400).json({ message: 'Lead IDs are required' });
       }
 
+      const enrolledIds = [];
+      const skippedIds = [];
+
       for (const leadId of leadIds) {
-        await storage.addStudentToClass(classId, leadId);
+        try {
+          // Check if already enrolled
+          const isEnrolled = await storage.isStudentInAnyClass(leadId);
+          if (isEnrolled) {
+            console.log(`[enroll-students] Lead ${leadId} already enrolled in a class, skipping`);
+            skippedIds.push(leadId);
+            continue;
+          }
+          await storage.addStudentToClass(classId, leadId);
+          enrolledIds.push(leadId);
+          console.log(`[enroll-students] Successfully enrolled lead ${leadId}`);
+        } catch (err: any) {
+          console.error(`[enroll-students] Failed to enroll lead ${leadId}:`, err.message);
+          skippedIds.push(leadId);
+        }
       }
 
-      res.json({ message: 'Students enrolled successfully' });
+      res.json({
+        message: 'Students enrolled successfully',
+        enrolledCount: enrolledIds.length,
+        skippedCount: skippedIds.length
+      });
     } catch (error: any) {
+      console.error('[enroll-students] Error:', error);
       res.status(500).json({ message: 'Failed to enroll students', error: error.message });
     }
   });
