@@ -8,9 +8,12 @@ import {
   productivityEvents,
   posts,
   postLikes,
+  postDislikes,
   postComments,
   classes,
   classStudents,
+  attendance,
+  marks,
   type User,
   type UpsertUser,
   type Lead,
@@ -29,6 +32,10 @@ import {
   type InsertClass,
   type ClassStudent,
   type InsertClassStudent,
+  type Attendance,
+  type InsertAttendance,
+  type Mark,
+  type InsertMark,
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, and, desc, count, sql, inArray, like, or, gte, lte, isNull } from "drizzle-orm";
@@ -158,6 +165,16 @@ export interface IStorage {
   addStudentToClass(classId: number, leadId: number): Promise<ClassStudent>;
   removeStudentFromClass(classId: number, leadId: number): Promise<void>;
   getClassStudents(classId: number): Promise<Lead[]>;
+  getClassStudentMappings(classId: number): Promise<ClassStudent[]>;
+  updateStudentId(classId: number, leadId: number, studentId: string): Promise<void>;
+
+  // Attendance operations
+  markAttendance(attendanceData: InsertAttendance): Promise<Attendance>;
+  getAttendance(classId: number, date?: string): Promise<Attendance[]>;
+
+  // Marks operations
+  addMark(markData: InsertMark): Promise<Mark>;
+  getMarks(classId: number): Promise<Mark[]>;
 
   // Kathaipom (Social Feed) operations
   createPost(userId: string, content: string, imageUrl?: string): Promise<any>;
@@ -1444,6 +1461,60 @@ c.*,
       .select()
       .from(leads)
       .where(inArray(leads.id, leadIds));
+  }
+
+  async getClassStudentMappings(classId: number): Promise<ClassStudent[]> {
+    return await db.select().from(classStudents).where(eq(classStudents.classId, classId));
+  }
+
+  async updateStudentId(classId: number, leadId: number, studentId: string): Promise<void> {
+    await db
+      .update(classStudents)
+      .set({ studentId })
+      .where(and(eq(classStudents.classId, classId), eq(classStudents.leadId, leadId)));
+  }
+
+  async markAttendance(attendanceData: InsertAttendance): Promise<Attendance> {
+    // Check if attendance already exists for this student/class/date
+    const [existing] = await db
+      .select()
+      .from(attendance)
+      .where(
+        and(
+          eq(attendance.classId, attendanceData.classId),
+          eq(attendance.leadId, attendanceData.leadId),
+          eq(attendance.date, attendanceData.date)
+        )
+      );
+
+    if (existing) {
+      const [updated] = await db
+        .update(attendance)
+        .set({ status: attendanceData.status })
+        .where(eq(attendance.id, existing.id))
+        .returning();
+      return updated;
+    }
+
+    const [newAttendance] = await db.insert(attendance).values(attendanceData).returning();
+    return newAttendance;
+  }
+
+  async getAttendance(classId: number, date?: string): Promise<Attendance[]> {
+    const query = db.select().from(attendance).where(eq(attendance.classId, classId));
+    if (date) {
+      return await query.where(eq(attendance.date, date));
+    }
+    return await query;
+  }
+
+  async addMark(markData: InsertMark): Promise<Mark> {
+    const [newMark] = await db.insert(marks).values(markData).returning();
+    return newMark;
+  }
+
+  async getMarks(classId: number): Promise<Mark[]> {
+    return await db.select().from(marks).where(eq(marks.classId, classId));
   }
 
   async getTechSupportMetrics(mentorEmail: string): Promise<{

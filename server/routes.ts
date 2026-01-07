@@ -5,7 +5,7 @@ import { storage, db, leads, leadHistory, users, posts, postLikes, postComments,
 import { setupAuth, isAuthenticated, getSession } from "./auth";
 import { hlsStreamer } from "./streaming";
 import { z } from "zod";
-import { insertLeadSchema, insertUserSchema, insertLeadHistorySchema, insertClassSchema, insertClassStudentSchema } from "@shared/schema";
+import { insertLeadSchema, insertUserSchema, insertLeadHistorySchema, insertClassSchema, insertClassStudentSchema, insertAttendanceSchema, insertMarksSchema } from "@shared/schema";
 import multer from "multer";
 import xlsx from "xlsx";
 import * as bcrypt from "bcrypt";
@@ -3917,6 +3917,174 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error: any) {
       console.error('[DELETE /api/classes/:id] Error:', error);
       res.status(500).json({ message: 'Failed to delete class', error: error.message });
+    }
+  });
+
+  // Get all students for a class with their mapping data (Student ID, joinedAt)
+  app.get('/api/classes/:id/student-mappings', isAuthenticated, async (req: any, res) => {
+    try {
+      const classId = parseInt(req.params.id);
+      if (isNaN(classId)) return res.status(400).json({ message: 'Invalid class ID' });
+
+      const mappings = await storage.getClassStudentMappings(classId);
+      const leads = await storage.getClassStudents(classId);
+
+      // Combine leads with their specific mapping data
+      const students = leads.map(lead => {
+        const mapping = mappings.find(m => m.leadId === lead.id);
+        return {
+          ...lead,
+          studentId: mapping?.studentId,
+          joinedAt: mapping?.joinedAt,
+          mappingId: mapping?.id
+        };
+      });
+
+      res.json(students);
+    } catch (error: any) {
+      res.status(500).json({ message: 'Failed to fetch student mappings', error: error.message });
+    }
+  });
+
+  // Bulk generate Student IDs for a class
+  app.post('/api/classes/:id/generate-student-ids', isAuthenticated, async (req: any, res) => {
+    try {
+      const classId = parseInt(req.params.id);
+      if (isNaN(classId)) return res.status(400).json({ message: 'Invalid class ID' });
+
+      const cls = await storage.getClass(classId);
+      if (!cls) return res.status(404).json({ message: 'Class not found' });
+
+      const subject = cls.subject || cls.name || 'Student';
+      const mappings = await storage.getClassStudentMappings(classId);
+
+      // Sort mappings by joinedAt to provide sequential IDs
+      const sortedMappings = mappings.sort((a, b) => new Date(a.joinedAt!).getTime() - new Date(b.joinedAt!).getTime());
+
+      for (let i = 0; i < sortedMappings.length; i++) {
+        const studentId = `${subject}-${(i + 1).toString().padStart(2, '0')}`;
+        await storage.updateStudentId(classId, sortedMappings[i].leadId, studentId);
+      }
+
+      res.json({ message: 'Student IDs generated successfully' });
+    } catch (error: any) {
+      res.status(500).json({ message: 'Failed to generate student IDs', error: error.message });
+    }
+  });
+
+  // Get attendance for a class
+  app.get('/api/classes/:id/attendance', isAuthenticated, async (req: any, res) => {
+    try {
+      const classId = parseInt(req.params.id);
+      const { date } = req.query;
+      const attendanceData = await storage.getAttendance(classId, date as string);
+      res.json(attendanceData);
+    } catch (error: any) {
+      res.status(500).json({ message: 'Failed to fetch attendance', error: error.message });
+    }
+  });
+
+  // Mark attendance
+  app.post('/api/classes/:id/attendance', isAuthenticated, async (req: any, res) => {
+    try {
+      const classId = parseInt(req.params.id);
+      const attendanceData = insertAttendanceSchema.parse({
+        ...req.body,
+        classId
+      });
+      const result = await storage.markAttendance(attendanceData);
+      res.json(result);
+    } catch (error: any) {
+      res.status(400).json({ message: 'Invalid attendance data', error: error.message });
+    }
+  });
+
+  // Get marks for a class
+  app.get('/api/classes/:id/marks', isAuthenticated, async (req: any, res) => {
+    try {
+      const classId = parseInt(req.params.id);
+      const marksData = await storage.getMarks(classId);
+      res.json(marksData);
+    } catch (error: any) {
+      res.status(500).json({ message: 'Failed to fetch marks', error: error.message });
+    }
+  });
+
+  // Add/Update mark
+  app.post('/api/classes/:id/marks', isAuthenticated, async (req: any, res) => {
+    try {
+      const classId = parseInt(req.params.id);
+      const markData = insertMarksSchema.parse({
+        ...req.body,
+        classId
+      });
+      const result = await storage.addMark(markData);
+      res.json(result);
+    } catch (error: any) {
+      res.status(400).json({ message: 'Invalid mark data', error: error.message });
+    }
+  });
+
+  // Update specific student ID
+  app.patch('/api/classes/:id/students/:leadId/student-id', isAuthenticated, async (req: any, res) => {
+    try {
+      const classId = parseInt(req.params.id);
+      const leadId = parseInt(req.params.leadId);
+      const { studentId } = req.body;
+
+      if (!studentId) return res.status(400).json({ message: 'Student ID is required' });
+
+      await storage.updateStudentId(classId, leadId, studentId);
+      res.json({ message: 'Student ID updated successfully' });
+    } catch (error: any) {
+      res.status(500).json({ message: 'Failed to update student ID', error: error.message });
+    }
+  });
+
+  // Remove student from class
+  app.delete('/api/classes/:id/students/:leadId', isAuthenticated, async (req: any, res) => {
+    try {
+      const classId = parseInt(req.params.id);
+      const leadId = parseInt(req.params.leadId);
+
+      if (isNaN(classId) || isNaN(leadId)) {
+        return res.status(400).json({ message: 'Invalid IDs' });
+      }
+
+      await storage.removeStudentFromClass(classId, leadId);
+      res.json({ message: 'Student removed from class successfully' });
+    } catch (error: any) {
+      res.status(500).json({ message: 'Failed to remove student from class', error: error.message });
+    }
+  });
+
+  // Enroll students in a class
+  app.post('/api/classes/:id/students', isAuthenticated, async (req: any, res) => {
+    try {
+      const classId = parseInt(req.params.id);
+      const { leadIds } = req.body;
+
+      if (!Array.isArray(leadIds) || leadIds.length === 0) {
+        return res.status(400).json({ message: 'Lead IDs are required' });
+      }
+
+      for (const leadId of leadIds) {
+        await storage.addStudentToClass(classId, leadId);
+      }
+
+      res.json({ message: 'Students enrolled successfully' });
+    } catch (error: any) {
+      res.status(500).json({ message: 'Failed to enroll students', error: error.message });
+    }
+  });
+
+  // Get leads ready for class
+  app.get('/api/leads/ready-for-class', isAuthenticated, async (req: any, res) => {
+    try {
+      const leadsResult = await storage.searchLeads({ status: 'ready_for_class', limit: 1000 });
+      res.json(leadsResult);
+    } catch (error: any) {
+      res.status(500).json({ message: 'Failed to fetch ready for class leads', error: error.message });
     }
   });
 

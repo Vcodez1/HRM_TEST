@@ -177,7 +177,28 @@ export const classStudents = pgTable("class_students", {
   id: integer("id").primaryKey().generatedByDefaultAsIdentity(),
   classId: integer("class_id").references(() => classes.id, { onDelete: 'cascade' }).notNull(),
   leadId: integer("lead_id").references(() => leads.id, { onDelete: 'cascade' }).notNull(),
+  studentId: text("student_id"), // Generated ID like "Subject-01"
   joinedAt: timestamp("joined_at").defaultNow(),
+});
+
+export const attendance = pgTable("attendance", {
+  id: integer("id").primaryKey().generatedByDefaultAsIdentity(),
+  classId: integer("class_id").references(() => classes.id, { onDelete: 'cascade' }).notNull(),
+  leadId: integer("lead_id").references(() => leads.id, { onDelete: 'cascade' }).notNull(),
+  date: date("date").notNull(),
+  status: text("status").notNull(), // 'Present', 'Absent'
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const marks = pgTable("marks", {
+  id: integer("id").primaryKey().generatedByDefaultAsIdentity(),
+  classId: integer("class_id").references(() => classes.id, { onDelete: 'cascade' }).notNull(),
+  leadId: integer("lead_id").references(() => leads.id, { onDelete: 'cascade' }).notNull(),
+  subject: text("subject").notNull(),
+  score: decimal("score", { precision: 5, scale: 2 }),
+  maxScore: decimal("max_score", { precision: 5, scale: 2 }),
+  date: date("date").notNull(),
+  createdAt: timestamp("created_at").defaultNow(),
 });
 
 // Relations
@@ -225,6 +246,8 @@ export const classRelations = relations(classes, ({ one, many }) => ({
     references: [users.id],
   }),
   students: many(classStudents),
+  attendance: many(attendance),
+  marks: many(marks),
 }));
 
 export const classStudentRelations = relations(classStudents, ({ one }) => ({
@@ -272,6 +295,16 @@ export const insertClassSchema = createInsertSchema(classes).omit({
 export const insertClassStudentSchema = createInsertSchema(classStudents).omit({
   id: true,
   joinedAt: true,
+});
+
+export const insertAttendanceSchema = createInsertSchema(attendance).omit({
+  id: true,
+  createdAt: true,
+});
+
+export const insertMarksSchema = createInsertSchema(marks).omit({
+  id: true,
+  createdAt: true,
 });
 
 export const insertLeadSchema = createInsertSchema(leads).omit({
@@ -340,3 +373,7 @@ export type ChatTranscript = typeof chatTranscripts.$inferSelect;
 export type InsertChatTranscript = z.infer<typeof insertChatTranscriptSchema>;
 export type ProductivityEvent = typeof productivityEvents.$inferSelect;
 export type InsertProductivityEvent = z.infer<typeof insertProductivityEventSchema>;
+export type Attendance = typeof attendance.$inferSelect;
+export type InsertAttendance = z.infer<typeof insertAttendanceSchema>;
+export type Mark = typeof marks.$inferSelect;
+export type InsertMark = z.infer<typeof insertMarksSchema>;

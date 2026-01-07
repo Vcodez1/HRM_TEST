@@ -355,8 +355,7 @@ export default function MyClassesPage() {
                                             </DropdownMenuTrigger>
                                             <DropdownMenuContent align="end" className="rounded-2xl border-slate-100 p-2 min-w-[160px] shadow-xl">
                                                 <DropdownMenuItem className="text-slate-600 gap-3 cursor-pointer rounded-xl h-11" onClick={() => {
-                                                    setSelectedClassId(cls.id);
-                                                    setIsStudentModalOpen(true);
+                                                    setLocation(`/classes/${cls.id}/students`);
                                                 }}>
                                                     <Users className="h-4 w-4" /> Students List
                                                 </DropdownMenuItem>
@@ -394,8 +393,7 @@ export default function MyClassesPage() {
                                             variant="outline"
                                             className="flex-1 rounded-xl h-11 border-blue-200 text-blue-700 bg-blue-50/50 hover:bg-blue-100 gap-2"
                                             onClick={() => {
-                                                setSelectedClassId(cls.id);
-                                                setIsStudentModalOpen(true);
+                                                setLocation(`/classes/${cls.id}/students`);
                                             }}
                                         >
                                             <Users className="h-4 w-4" /> Students
