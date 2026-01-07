@@ -579,9 +579,9 @@ export class DatabaseStorage implements IStorage {
     // Handle special unassigned filter for HR users
     if (unassigned) {
       conditions.push(isNull(leads.currentOwnerId));
-    } else if (!accountsStatuses || accountsStatuses.length === 0) {
-      // Only apply owner filtering if accountsStatuses is NOT set
-      // When accountsStatuses is set, we want ALL leads with those statuses regardless of owner
+    } else if ((!accountsStatuses || accountsStatuses.length === 0) && (!statuses || statuses.length === 0)) {
+      // Only apply owner filtering if NEITHER accountsStatuses NOR statuses is set
+      // When either is set, we want ALL leads with those statuses regardless of owner
       if (ownerId && accountsId) {
         // If both are provided, use OR logic to find leads owned by either
         conditions.push(
@@ -717,9 +717,9 @@ UNION
     if (search) {
       conditions.push(
         or(
-          like(leads.name, `% ${search}% `),
-          like(leads.email, `% ${search}% `),
-          like(leads.phone, `% ${search}% `)
+          like(leads.name, `%${search}%`),
+          like(leads.email, `%${search}%`),
+          like(leads.phone, `%${search}%`)
         )
       );
     }
