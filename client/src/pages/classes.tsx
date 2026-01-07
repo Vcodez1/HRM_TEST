@@ -249,13 +249,16 @@ export default function MyClassesPage() {
                                                                 </SelectTrigger>
                                                             </FormControl>
                                                             <SelectContent>
-                                                                {techSupportUsers?.map((user) => (
-                                                                    <SelectItem key={user.id} value={user.email}>
-                                                                        {user.fullName} ({user.email})
-                                                                    </SelectItem>
-                                                                ))}
-                                                                {(!techSupportUsers || techSupportUsers.length === 0) && (
-                                                                    <SelectItem value="" disabled>No tech support users available</SelectItem>
+                                                                {techSupportUsers && techSupportUsers.length > 0 ? (
+                                                                    techSupportUsers.map((user) => (
+                                                                        <SelectItem key={user.id} value={user.email}>
+                                                                            {user.fullName} ({user.email})
+                                                                        </SelectItem>
+                                                                    ))
+                                                                ) : (
+                                                                    <div className="p-2 text-sm text-slate-500 text-center">
+                                                                        No tech support users available
+                                                                    </div>
                                                                 )}
                                                             </SelectContent>
                                                         </Select>
