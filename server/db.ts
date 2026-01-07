@@ -158,6 +158,7 @@ if (!process.env.DATABASE_URL) {
           id SERIAL PRIMARY KEY,
           class_id integer NOT NULL REFERENCES classes(id) ON DELETE CASCADE,
           lead_id integer NOT NULL REFERENCES leads(id) ON DELETE CASCADE,
+          student_id text,
           joined_at timestamp DEFAULT CURRENT_TIMESTAMP
         )`
       ];
