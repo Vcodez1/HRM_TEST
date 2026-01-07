@@ -32,6 +32,7 @@ export default function Sidebar() {
   const { user } = useAuth();
   const [myLeadsExpanded, setMyLeadsExpanded] = useState(false);
   const [mySessionsExpanded, setMySessionsExpanded] = useState(false);
+  const [myTechSupportClassesExpanded, setMyTechSupportClassesExpanded] = useState(false);
   const [myCompletionExpanded, setMyCompletionExpanded] = useState(false);
   const isSessOrg = isSessionOrganizer((user as any)?.role);
   const currentAdminSubRole = getAdminSubRole();
@@ -119,6 +120,18 @@ export default function Sidebar() {
       return response.json();
     },
     enabled: isSessOrg,
+    retry: false,
+  });
+
+  // Fetch classes assigned to tech-support user as mentor
+  const { data: myMentorClassesData } = useQuery({
+    queryKey: ["/api/classes/my-mentor"],
+    queryFn: async () => {
+      const response = await fetch("/api/classes/my-mentor", { credentials: "include" });
+      if (!response.ok) return [];
+      return response.json();
+    },
+    enabled: (user as any)?.role === 'tech-support',
     retry: false,
   });
 
@@ -504,6 +517,64 @@ export default function Sidebar() {
                 ) : (
                   <p className="px-2 py-1 text-xs text-gray-800">
                     No sessions scheduled yet
+                  </p>
+                )}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* My Sessions Section for Tech Support Users */}
+        {(user as any)?.role === 'tech-support' && (
+          <div className="mt-4 pt-4 border-t border-border">
+            <button
+              onClick={() => setMyTechSupportClassesExpanded(!myTechSupportClassesExpanded)}
+              className="w-full flex items-center justify-between p-2 text-sm text-gray-800 hover:text-black hover:bg-accent rounded-md transition-colors"
+              data-testid="button-tech-support-sessions-toggle"
+            >
+              <div className="flex items-center">
+                <BookCheck className="w-4 h-4 mr-2" />
+                <span>My Sessions</span>
+                {Array.isArray(myMentorClassesData) && myMentorClassesData.length > 0 && (
+                  <Badge variant="secondary" className="ml-2 text-xs">
+                    {myMentorClassesData.length}
+                  </Badge>
+                )}
+              </div>
+              {myTechSupportClassesExpanded ? (
+                <ChevronDown className="w-4 h-4" />
+              ) : (
+                <ChevronRight className="w-4 h-4" />
+              )}
+            </button>
+
+            {myTechSupportClassesExpanded && (
+              <div className="mt-2 space-y-1 pl-6">
+                {Array.isArray(myMentorClassesData) && myMentorClassesData.length > 0 ? (
+                  <>
+                    {myMentorClassesData.slice(0, 3).map((cls: any) => (
+                      <Link
+                        key={cls.id}
+                        href="/classes"
+                        className="block px-2 py-1 text-xs text-gray-800 hover:text-black hover:bg-accent rounded transition-colors truncate"
+                        data-testid={`link-tech-support-class-${cls.id}`}
+                      >
+                        {cls.name} • {cls.studentCount} students
+                      </Link>
+                    ))}
+                    {myMentorClassesData.length > 3 && (
+                      <Link
+                        href="/classes"
+                        className="block px-2 py-1 text-xs text-primary hover:text-primary/80 rounded transition-colors"
+                        data-testid="link-view-all-tech-support-classes"
+                      >
+                        View all {myMentorClassesData.length} classes →
+                      </Link>
+                    )}
+                  </>
+                ) : (
+                  <p className="px-2 py-1 text-xs text-gray-800">
+                    No classes assigned yet
                   </p>
                 )}
               </div>

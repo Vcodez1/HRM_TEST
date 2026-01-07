@@ -775,6 +775,24 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Get all tech-support users for mentor dropdown
+  // IMPORTANT: This route MUST be defined BEFORE /api/users/:id to prevent "tech-support" being matched as an :id
+  app.get('/api/users/tech-support', isAuthenticated, async (req: any, res) => {
+    try {
+      const techSupportUsers = await storage.getUsersByRole('tech-support');
+      // Return only essential info for the dropdown
+      const users = techSupportUsers.map((u: any) => ({
+        id: u.id,
+        email: u.email,
+        fullName: u.fullName || `${u.firstName || ''} ${u.lastName || ''}`.trim() || u.email
+      }));
+      res.json(users);
+    } catch (error: any) {
+      console.error("Error fetching tech-support users:", error);
+      res.status(500).json({ message: "Failed to fetch tech-support users" });
+    }
+  });
+
   app.get('/api/users/:id', isAuthenticated, async (req: any, res) => {
     try {
       const { id } = req.params;
@@ -1018,22 +1036,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Get all tech-support users for mentor dropdown
-  app.get('/api/users/tech-support', isAuthenticated, async (req: any, res) => {
-    try {
-      const techSupportUsers = await storage.getUsersByRole('tech-support');
-      // Return only essential info for the dropdown
-      const users = techSupportUsers.map((u: any) => ({
-        id: u.id,
-        email: u.email,
-        fullName: u.fullName || `${u.firstName || ''} ${u.lastName || ''}`.trim() || u.email
-      }));
-      res.json(users);
-    } catch (error: any) {
-      console.error("Error fetching tech-support users:", error);
-      res.status(500).json({ message: "Failed to fetch tech-support users" });
-    }
-  });
+
 
   // Get leads with "ready_for_class" status for adding to classes
   app.get('/api/leads/ready-for-class', isAuthenticated, async (req: any, res) => {
