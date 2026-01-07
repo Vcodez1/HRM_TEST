@@ -103,21 +103,27 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Email Configuration routes
   app.get('/api/email-config', isAuthenticated, async (req: any, res) => {
     try {
+      console.log('[GET /api/email-config] Fetching email config...');
       const config = await storage.getEmailConfig();
+      console.log('[GET /api/email-config] Config retrieved:', config ? 'Found' : 'Not found', config ? { hasEmail: !!config.smtpEmail, hasPassword: !!config.appPassword } : null);
       res.json(config || {});
     } catch (error: any) {
+      console.error('[GET /api/email-config] Error:', error);
       res.status(500).json({ message: "Failed to fetch email configuration", error: error.message });
     }
   });
 
   app.post('/api/email-config', isAuthenticated, async (req: any, res) => {
     try {
+      console.log('[POST /api/email-config] Saving email config:', { hasEmail: !!req.body.smtpEmail, hasPassword: !!req.body.appPassword, server: req.body.smtpServer, port: req.body.smtpPort });
       if (req.user.role !== 'admin' && req.user.role !== 'manager' && req.user.role !== 'tech-support') {
         return res.status(403).json({ message: "Only admins, managers, and tech-support can update email configuration" });
       }
       const config = await storage.updateEmailConfig(req.body);
+      console.log('[POST /api/email-config] Config saved successfully:', config.id);
       res.json(config);
     } catch (error: any) {
+      console.error('[POST /api/email-config] Error:', error);
       res.status(500).json({ message: "Failed to update email configuration", error: error.message });
     }
   });
