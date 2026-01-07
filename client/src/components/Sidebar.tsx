@@ -22,7 +22,8 @@ import {
   TrendingUp,
   BookCheck,
   CalendarSearch,
-  BookOpen
+  BookOpen,
+  Mail
 } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { useState, useEffect } from "react";
@@ -294,6 +295,13 @@ export default function Sidebar() {
       icon: BookOpen,
       current: location === "/tech-docs",
       roleRequired: ["tech-support", "admin"],
+    },
+    {
+      name: "Email Settings",
+      href: "/email-settings",
+      icon: Mail,
+      current: location === "/email-settings" || location === "/test-email",
+      roleRequired: ["admin", "manager"],
     },
   ];
 

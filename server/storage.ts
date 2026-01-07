@@ -14,6 +14,7 @@ import {
   classStudents,
   attendance,
   marks,
+  emailConfig,
   type User,
   type UpsertUser,
   type Lead,
@@ -36,13 +37,15 @@ import {
   type InsertAttendance,
   type Mark,
   type InsertMark,
+  type EmailConfig,
+  type InsertEmailConfig,
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, and, desc, count, sql, inArray, like, or, gte, lte, isNull } from "drizzle-orm";
 import fs from 'fs';
 import path from 'path';
 
-export { db, leads, leadHistory, users, uploads, notifications, posts, postLikes, postComments, classes, classStudents };
+export { db, leads, leadHistory, users, uploads, notifications, posts, postLikes, postComments, classes, classStudents, emailConfig };
 export { eq, and, or, sql, inArray, desc };
 
 export interface IStorage {
@@ -195,10 +198,13 @@ export interface IStorage {
 
   // Tech Support Dashboard operations
   getTechSupportMetrics(mentorEmail: string): Promise<{
-    totalClasses: number;
     totalStudents: number;
     recentRecords: any[];
   }>;
+
+  // Email Configuration operations
+  getEmailConfig(): Promise<EmailConfig | undefined>;
+  updateEmailConfig(config: InsertEmailConfig): Promise<EmailConfig>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -1673,6 +1679,26 @@ c.*,
     } catch (error) {
       console.error('[Storage] Error in getTechSupportMetrics:', error);
       throw error;
+    }
+  }
+
+  async getEmailConfig(): Promise<EmailConfig | undefined> {
+    const [config] = await db.select().from(emailConfig).limit(1);
+    return config;
+  }
+
+  async updateEmailConfig(configData: InsertEmailConfig): Promise<EmailConfig> {
+    const existing = await this.getEmailConfig();
+    if (existing) {
+      const [updated] = await db
+        .update(emailConfig)
+        .set({ ...configData, updatedAt: new Date() })
+        .where(eq(emailConfig.id, existing.id))
+        .returning();
+      return updated;
+    } else {
+      const [inserted] = await db.insert(emailConfig).values(configData).returning();
+      return inserted;
     }
   }
 }

@@ -28,6 +28,8 @@ import Productivity from "@/pages/productivity";
 import TeamLeadDashboard from "@/pages/team-lead-dashboard";
 import Kathaipom from "@/pages/kathaipom";
 import TechDocs from "@/pages/tech-docs";
+import EmailSettings from "@/pages/EmailSettings";
+import TestEmail from "@/pages/TestEmail";
 import NotFound from "@/pages/not-found";
 
 function Router() {
@@ -75,6 +77,8 @@ function Router() {
             <Route path="/my-team-lead" component={TeamLeadDashboard} />
             <Route path="/kathaipom" component={Kathaipom} />
             <Route path="/tech-docs" component={TechDocs} />
+            <Route path="/email-settings" component={EmailSettings} />
+            <Route path="/test-email" component={TestEmail} />
           </>
         )}
         <Route component={NotFound} />

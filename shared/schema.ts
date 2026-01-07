@@ -201,6 +201,17 @@ export const marks = pgTable("marks", {
   createdAt: timestamp("created_at").defaultNow(),
 });
 
+// Email Configuration Table
+export const emailConfig = pgTable("email_config", {
+  id: integer("id").primaryKey().generatedByDefaultAsIdentity(),
+  smtpEmail: text("smtp_email").notNull(),
+  appPassword: text("app_password").notNull(),
+  smtpServer: text("smtp_server").notNull(),
+  smtpPort: integer("smtp_port").notNull().default(587),
+  isEnabled: boolean("is_enabled").default(true),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
 // Relations
 export const userRelations = relations(users, ({ many }) => ({
   ownedLeads: many(leads, { relationName: "currentOwner" }),
@@ -353,6 +364,11 @@ export const insertProductivityEventSchema = createInsertSchema(productivityEven
   }).optional(),
 });
 
+export const insertEmailConfigSchema = createInsertSchema(emailConfig).omit({
+  id: true,
+  updatedAt: true,
+});
+
 // Types
 export type UpsertUser = typeof users.$inferInsert;
 export type User = typeof users.$inferSelect;
@@ -377,3 +393,5 @@ export type Attendance = typeof attendance.$inferSelect;
 export type InsertAttendance = z.infer<typeof insertAttendanceSchema>;
 export type Mark = typeof marks.$inferSelect;
 export type InsertMark = z.infer<typeof insertMarksSchema>;
+export type EmailConfig = typeof emailConfig.$inferSelect;
+export type InsertEmailConfig = z.infer<typeof insertEmailConfigSchema>;

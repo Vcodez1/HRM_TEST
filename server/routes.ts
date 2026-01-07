@@ -14,6 +14,7 @@ import connectPg from "connect-pg-simple";
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import fs from "fs";
 import path from "path";
+import nodemailer from "nodemailer";
 
 const upload = multer({
   storage: multer.memoryStorage(),
@@ -96,6 +97,62 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json({ success: true, message: "HLS streaming stopped" });
     } catch (error: any) {
       res.status(500).json({ message: "Error stopping stream" });
+    }
+  });
+
+  // Email Configuration routes
+  app.get('/api/email-config', isAuthenticated, async (req: any, res) => {
+    try {
+      const config = await storage.getEmailConfig();
+      res.json(config || {});
+    } catch (error: any) {
+      res.status(500).json({ message: "Failed to fetch email configuration", error: error.message });
+    }
+  });
+
+  app.post('/api/email-config', isAuthenticated, async (req: any, res) => {
+    try {
+      if (req.user.role !== 'admin' && req.user.role !== 'manager') {
+        return res.status(403).json({ message: "Only admins and managers can update email configuration" });
+      }
+      const config = await storage.updateEmailConfig(req.body);
+      res.json(config);
+    } catch (error: any) {
+      res.status(500).json({ message: "Failed to update email configuration", error: error.message });
+    }
+  });
+
+  app.post('/api/email-config/test', isAuthenticated, async (req: any, res) => {
+    try {
+      const { testEmail, config } = req.body;
+      const smtpConfig = config || await storage.getEmailConfig();
+
+      if (!smtpConfig || !smtpConfig.smtpEmail || !smtpConfig.appPassword) {
+        return res.status(400).json({ message: "Email configuration is incomplete" });
+      }
+
+      const transporter = nodemailer.createTransport({
+        host: smtpConfig.smtpServer,
+        port: smtpConfig.smtpPort,
+        secure: smtpConfig.smtpPort === 465, // true for 465, false for other ports
+        auth: {
+          user: smtpConfig.smtpEmail,
+          pass: smtpConfig.appPassword,
+        },
+      });
+
+      await transporter.sendMail({
+        from: `"${process.env.APP_NAME || 'HRM Portal'}" <${smtpConfig.smtpEmail}>`,
+        to: testEmail,
+        subject: "SMTP Test Email - HRM Portal",
+        text: "This is a test email from your HRM Portal to verify SMTP settings.",
+        html: "<b>This is a test email from your HRM Portal to verify SMTP settings.</b>",
+      });
+
+      res.json({ message: "Test email sent successfully" });
+    } catch (error: any) {
+      console.error('[POST /api/email-config/test] Error:', error);
+      res.status(500).json({ message: "Failed to send test email", error: error.message });
     }
   });
 
