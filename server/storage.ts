@@ -1438,6 +1438,13 @@ c.*,
     try {
       console.log(`[addStudentToClass] Adding lead ${leadId} to class ${classId}`);
 
+      // Validate that the lead exists first (to avoid foreign key constraint error)
+      const [lead] = await db.select().from(leads).where(eq(leads.id, leadId)).limit(1);
+      if (!lead) {
+        console.error(`[addStudentToClass] Lead ${leadId} does not exist in database!`);
+        return null;
+      }
+
       // Check if already enrolled in this specific class
       const [existing] = await db
         .select()
