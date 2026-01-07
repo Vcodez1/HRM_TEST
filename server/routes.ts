@@ -125,34 +125,78 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post('/api/email-config/test', isAuthenticated, async (req: any, res) => {
     try {
       const { testEmail, config } = req.body;
+      console.log('[POST /api/email-config/test] Starting test email to:', testEmail);
+
       const smtpConfig = config || await storage.getEmailConfig();
 
       if (!smtpConfig || !smtpConfig.smtpEmail || !smtpConfig.appPassword) {
-        return res.status(400).json({ message: "Email configuration is incomplete" });
+        console.log('[POST /api/email-config/test] Email configuration is incomplete');
+        return res.status(400).json({ message: "Email configuration is incomplete. Please save your settings first." });
       }
+
+      if (!testEmail) {
+        return res.status(400).json({ message: "Recipient email address is required" });
+      }
+
+      console.log('[POST /api/email-config/test] SMTP Config:', {
+        host: smtpConfig.smtpServer,
+        port: smtpConfig.smtpPort,
+        user: smtpConfig.smtpEmail,
+        secure: smtpConfig.smtpPort === 465
+      });
 
       const transporter = nodemailer.createTransport({
         host: smtpConfig.smtpServer,
         port: smtpConfig.smtpPort,
-        secure: smtpConfig.smtpPort === 465, // true for 465, false for other ports
+        secure: smtpConfig.smtpPort === 465,
         auth: {
           user: smtpConfig.smtpEmail,
           pass: smtpConfig.appPassword,
         },
+        connectionTimeout: 10000, // 10 seconds
+        greetingTimeout: 10000,
+        socketTimeout: 15000,
       });
+
+      console.log('[POST /api/email-config/test] Verifying transporter...');
+
+      // Verify SMTP connection first
+      try {
+        await transporter.verify();
+        console.log('[POST /api/email-config/test] SMTP connection verified successfully');
+      } catch (verifyError: any) {
+        console.error('[POST /api/email-config/test] SMTP verification failed:', verifyError.message);
+        return res.status(400).json({
+          message: "SMTP connection failed. Please check your credentials.",
+          error: verifyError.message
+        });
+      }
+
+      console.log('[POST /api/email-config/test] Sending test email...');
 
       await transporter.sendMail({
         from: `"${process.env.APP_NAME || 'HRM Portal'}" <${smtpConfig.smtpEmail}>`,
         to: testEmail,
         subject: "SMTP Test Email - HRM Portal",
-        text: "This is a test email from your HRM Portal to verify SMTP settings.",
-        html: "<b>This is a test email from your HRM Portal to verify SMTP settings.</b>",
+        text: "This is a test email from your HRM Portal to verify SMTP settings. If you received this, your email configuration is working correctly!",
+        html: "<h2>🎉 Success!</h2><p>This is a test email from your <b>HRM Portal</b> to verify SMTP settings.</p><p>If you received this, your email configuration is working correctly!</p>",
       });
 
-      res.json({ message: "Test email sent successfully" });
+      console.log('[POST /api/email-config/test] Test email sent successfully to:', testEmail);
+      res.json({ message: "Test email sent successfully! Check your inbox." });
     } catch (error: any) {
       console.error('[POST /api/email-config/test] Error:', error);
-      res.status(500).json({ message: "Failed to send test email", error: error.message });
+      let userMessage = "Failed to send test email";
+
+      if (error.code === 'EAUTH') {
+        userMessage = "Authentication failed. Please check your email and app password.";
+      } else if (error.code === 'ECONNECTION' || error.code === 'ETIMEDOUT') {
+        userMessage = "Connection timed out. Please check your SMTP server and port settings.";
+      } else if (error.code === 'ESOCKET') {
+        userMessage = "Network error. Please check your internet connection.";
+      }
+
+      res.status(500).json({ message: userMessage, error: error.message });
     }
   });
 
