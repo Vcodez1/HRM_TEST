@@ -42,16 +42,21 @@ export default function TechSupportDashboard({ userDisplayName }: { userDisplayN
 
     const notifyMutation = useMutation({
         mutationFn: async () => {
+            console.log('[notifyMutation] Triggering notification API...');
             const response = await apiRequest("POST", "/api/tech-support/notify-students");
-            return response.json();
+            const data = await response.json();
+            console.log('[notifyMutation] API Response:', data);
+            return data;
         },
         onSuccess: (data) => {
+            console.log('[notifyMutation] Success:', data);
             toast({
                 title: "Success",
                 description: data.message || "Absent students notified successfully",
             });
         },
         onError: (error: any) => {
+            console.error('[notifyMutation] Error:', error);
             toast({
                 title: "Error",
                 description: error.message || "Failed to notify students",

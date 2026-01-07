@@ -1,5 +1,5 @@
 import type { Express } from "express";
-import { createServer, type Server } from "http";
+import { createServer, type Server, type IncomingMessage } from "http";
 import { WebSocketServer, WebSocket } from "ws";
 import { storage, db, leads, leadHistory, users, posts, postLikes, postComments, classes, classStudents, eq, and, or, sql, inArray, desc } from "./storage";
 import { setupAuth, isAuthenticated, getSession } from "./auth";
@@ -955,6 +955,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
           users = await storage.getUsersByRole('accounts');
         } else {
           return res.status(403).json({ message: "Accounts users can only access HR and Accounts user lists" });
+        }
+      } else if (userRole === 'tech-support') {
+        // Tech support can see HR users
+        if (role === 'hr' || !role) {
+          users = await storage.getUsersByRole('hr');
+        } else {
+          return res.status(403).json({ message: "Tech support users can only access HR user lists" });
         }
       } else {
         return res.status(403).json({ message: "Insufficient permissions" });
@@ -2168,8 +2175,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       console.log(`[/api/my/leads] User ${userId} with role '${userRole}' requesting leads`);
 
-      // HR, accounts, and management roles can access
-      if (!['hr', 'accounts', 'manager', 'admin'].includes(userRole as any)) {
+      // HR, accounts, tech-support and management roles can access
+      if (!['hr', 'accounts', 'manager', 'admin', 'tech-support'].includes(userRole as any)) {
         console.log(`[/api/my/leads] Access denied for role: ${userRole}`);
         return res.status(403).json({ message: "Access denied - insufficient permissions for this role" });
       }
@@ -2327,7 +2334,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const userRole = currentUser?.role;
 
       // Allow all authenticated users to see lead history for metrics
-      if (!['admin', 'manager', 'hr', 'accounts'].includes(userRole as string)) {
+      if (!['admin', 'manager', 'hr', 'accounts', 'tech-support'].includes(userRole as string)) {
         return res.status(403).json({ message: "Access denied" });
       }
 
@@ -2708,7 +2715,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(403).json({ message: "Forbidden: Tech support access only" });
       }
 
-      const metrics = await storage.getTechSupportMetrics(user.email);
+      const metrics = await storage.getTechSupportMetrics(user.claims.email);
       res.json(metrics);
     } catch (error) {
       console.error("Error fetching tech support dashboard:", error);
@@ -3580,9 +3587,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Store authenticated connections with user info
-  const authenticatedClients = new Map();
+  const authenticatedClients = new Map<WebSocket, any>();
 
-  wss.on('connection', async (ws, request) => {
+  wss.on('connection', async (ws: WebSocket, request: IncomingMessage) => {
     let userId = null;
     let userRole = null;
     let userInfo = null;
@@ -3618,7 +3625,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       connected: Date.now()
     });
 
-    ws.on('message', (message) => {
+    ws.on('message', (message: Buffer) => {
       console.log(`Received from user ${userId}:`, message.toString());
     });
 

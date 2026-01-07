@@ -248,6 +248,7 @@ export default function Dashboard() {
 
   const { data: recentActivity } = useQuery({
     queryKey: ["/api/leads/recent"],
+    enabled: !!user && ['admin', 'manager', 'hr', 'accounts', 'session_organizer', 'session-coordinator', 'tech-support'].includes((user as any)?.role),
     retry: false,
   });
 
@@ -300,6 +301,7 @@ export default function Dashboard() {
       if (!response.ok) throw new Error("Failed to fetch HR users");
       return response.json();
     },
+    enabled: !!user && ['admin', 'manager', 'team_lead', 'tech-support', 'accounts'].includes((user as any)?.role),
     retry: false,
     refetchInterval: 5000,
     refetchOnWindowFocus: true,
@@ -307,6 +309,7 @@ export default function Dashboard() {
 
   const { data: leadHistoryData } = useQuery({
     queryKey: ["/api/history/all"],
+    enabled: !!user && ['admin', 'manager', 'hr', 'accounts', 'tech-support'].includes((user as any)?.role),
     retry: false,
     refetchInterval: 3000,
     refetchOnWindowFocus: true,
