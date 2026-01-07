@@ -147,6 +147,13 @@ export const postLikes = pgTable("post_likes", {
   createdAt: timestamp("created_at").defaultNow(),
 });
 
+export const postDislikes = pgTable("post_dislikes", {
+  id: integer("id").primaryKey().generatedByDefaultAsIdentity(),
+  postId: integer("post_id").references(() => posts.id, { onDelete: 'cascade' }).notNull(),
+  userId: varchar("user_id").references(() => users.id).notNull(),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
 export const postComments = pgTable("post_comments", {
   id: integer("id").primaryKey().generatedByDefaultAsIdentity(),
   postId: integer("post_id").references(() => posts.id, { onDelete: 'cascade' }).notNull(),

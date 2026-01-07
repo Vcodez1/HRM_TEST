@@ -4,11 +4,11 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Heart, MessageCircle, Send } from "lucide-react";
+import { Heart, MessageCircle, Send, ThumbsDown } from "lucide-react";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { motion, AnimatePresence } from "framer-motion";
 
-export function KathaipomFeed() {
+export function KathaipomFeed({ isHorizontal = false }: { isHorizontal?: boolean }) {
     const { user } = useAuth();
     const { toast } = useToast();
     const queryClient = useQueryClient();
@@ -77,6 +77,59 @@ export function KathaipomFeed() {
         },
         onSettled: () => {
             // Always refetch after error or success to keep server state in sync
+            queryClient.invalidateQueries({ queryKey: ["/api/kathaipom/posts"] });
+        },
+    });
+
+    // Dislike post mutation
+    const dislikePostMutation = useMutation({
+        mutationFn: async (postId: number) => {
+            const res = await fetch(`/api/kathaipom/posts/${postId}/dislike`, {
+                method: "POST",
+                credentials: "include",
+            });
+            if (!res.ok) throw new Error("Failed to dislike post");
+            return res.json();
+        },
+        onMutate: async (postId) => {
+            await queryClient.cancelQueries({ queryKey: ["/api/kathaipom/posts"] });
+            const previousPosts = queryClient.getQueryData(["/api/kathaipom/posts"]);
+
+            queryClient.setQueryData(["/api/kathaipom/posts"], (old: any) => {
+                if (!old) return old;
+                return old.map((post: any) => {
+                    if (post.id === postId) {
+                        const newHasDisliked = !post.user_has_disliked;
+                        const wasLiked = post.user_has_liked;
+                        return {
+                            ...post,
+                            user_has_disliked: newHasDisliked,
+                            dislike_count: newHasDisliked
+                                ? (post.dislike_count || 0) + 1
+                                : Math.max(0, (post.dislike_count || 0) - 1),
+                            // Mutually exclusive
+                            user_has_liked: newHasDisliked ? false : post.user_has_liked,
+                            like_count: newHasDisliked && wasLiked
+                                ? Math.max(0, (post.like_count || 0) - 1)
+                                : post.like_count
+                        };
+                    }
+                    return post;
+                });
+            });
+            return { previousPosts };
+        },
+        onError: (err, postId, context) => {
+            if (context?.previousPosts) {
+                queryClient.setQueryData(["/api/kathaipom/posts"], context.previousPosts);
+            }
+            toast({
+                title: "Error",
+                description: "Failed to update dislike. Please try again.",
+                variant: "destructive"
+            });
+        },
+        onSettled: () => {
             queryClient.invalidateQueries({ queryKey: ["/api/kathaipom/posts"] });
         },
     });
@@ -159,7 +212,7 @@ export function KathaipomFeed() {
     }
 
     return (
-        <div className="h-full overflow-y-auto snap-y snap-mandatory custom-scrollbar-hide bg-zinc-950">
+        <div className={`h-full ${isHorizontal ? 'flex overflow-x-auto snap-x snap-mandatory hide-scrollbar gap-1 pt-1 pb-1' : 'overflow-y-auto snap-y snap-mandatory custom-scrollbar-hide'} bg-zinc-950`}>
             {posts.slice(0, 50).map((post: any) => (
                 <PostCard
                     key={post.id}
@@ -168,11 +221,13 @@ export function KathaipomFeed() {
                     toggleComments={toggleComments}
                     expandedPosts={expandedPosts}
                     likePostMutation={likePostMutation}
+                    dislikePostMutation={dislikePostMutation}
                     addCommentMutation={addCommentMutation}
                     commentTexts={commentTexts}
                     setCommentTexts={setCommentTexts}
                     usePostComments={usePostComments}
                     user={user}
+                    isHorizontal={isHorizontal}
                 />
             ))}
         </div>
@@ -185,11 +240,13 @@ function PostCard({
     toggleComments,
     expandedPosts,
     likePostMutation,
+    dislikePostMutation,
     addCommentMutation,
     commentTexts,
     setCommentTexts,
     usePostComments,
     user,
+    isHorizontal
 }: any) {
     const { data: comments } = usePostComments(post.id);
     const showComments = expandedPosts.has(post.id);
@@ -230,9 +287,9 @@ function PostCard({
 
     return (
         <div
-            className="h-full w-full snap-start snap-always relative flex flex-col bg-black border-b border-white/5 overflow-hidden group"
+            className={`${isHorizontal ? 'h-full w-[600px] snap-start flex-shrink-0' : 'h-full w-full snap-start snap-always'} relative flex flex-col bg-black border-r border-white/5 overflow-hidden group`}
         >
-            <div className="flex-1 w-full max-w-[450px] mx-auto relative flex flex-col shadow-2xl overflow-hidden aspect-[4/5] sm:aspect-auto">
+            <div className={`flex-1 w-full ${isHorizontal ? '' : 'max-w-[450px] mx-auto'} relative flex flex-col shadow-2xl overflow-hidden ${isHorizontal ? '' : 'aspect-[4/5] sm:aspect-auto'}`}>
                 <div
                     className="flex-1 relative flex items-center justify-center bg-zinc-900/80 cursor-pointer select-none"
                     onClick={handleDoubleTap}
@@ -313,24 +370,48 @@ function PostCard({
                         )}
                     </div>
 
-                    <div className="absolute right-4 bottom-8 flex flex-col items-center gap-6 z-20 pointer-events-auto">
+                    <div className={`absolute right-4 ${isHorizontal ? 'bottom-4' : 'bottom-8'} flex flex-col items-center gap-4 z-20 pointer-events-auto`}>
                         <div className="flex flex-col items-center group/action">
                             <motion.button
                                 whileHover={{ scale: 1.1 }}
                                 whileTap={{ scale: 0.9 }}
                                 onClick={handleLikeClick}
-                                className={`p-3 rounded-full bg-black/30 backdrop-blur-xl border border-white/5 shadow-xl transition-colors ${post.user_has_liked ? "text-red-500 border-red-500/20" : "text-white hover:text-red-400"}`}
+                                className={`p-2.5 rounded-full bg-black/30 backdrop-blur-xl border border-white/5 shadow-xl transition-colors ${post.user_has_liked ? "text-red-500 border-red-500/20" : "text-white hover:text-red-400"}`}
                                 title={post.user_has_liked ? "Unlike" : "Like"}
                             >
-                                <Heart className={`w-7 h-7 ${post.user_has_liked ? "fill-current" : ""}`} />
+                                <Heart className={`w-6 h-6 ${post.user_has_liked ? "fill-current" : ""}`} />
                             </motion.button>
                             <motion.span
                                 key={post.like_count}
                                 initial={{ y: 5, opacity: 0 }}
                                 animate={{ y: 0, opacity: 1 }}
-                                className="text-[12px] font-black text-white mt-1.5 drop-shadow-lg tabular-nums"
+                                className="text-[11px] font-black text-white mt-1 drop-shadow-lg tabular-nums"
                             >
                                 {post.like_count || 0}
+                            </motion.span>
+                        </div>
+
+                        {/* Dislike Action */}
+                        <div className="flex flex-col items-center group/action">
+                            <motion.button
+                                whileHover={{ scale: 1.1 }}
+                                whileTap={{ scale: 0.9 }}
+                                onClick={(e) => {
+                                    e.stopPropagation();
+                                    dislikePostMutation.mutate(post.id);
+                                }}
+                                className={`p-2.5 rounded-full bg-black/30 backdrop-blur-xl border border-white/5 shadow-xl transition-colors ${post.user_has_disliked ? "text-orange-500 border-orange-500/20" : "text-white hover:text-orange-400"}`}
+                                title={post.user_has_disliked ? "Remove Dislike" : "Dislike"}
+                            >
+                                <ThumbsDown className={`w-6 h-6 ${post.user_has_disliked ? "fill-current" : ""}`} />
+                            </motion.button>
+                            <motion.span
+                                key={post.dislike_count}
+                                initial={{ y: 5, opacity: 0 }}
+                                animate={{ y: 0, opacity: 1 }}
+                                className="text-[11px] font-black text-white mt-1 drop-shadow-lg tabular-nums"
+                            >
+                                {post.dislike_count || 0}
                             </motion.span>
                         </div>
 
@@ -342,12 +423,12 @@ function PostCard({
                                     e.stopPropagation();
                                     toggleComments(post.id);
                                 }}
-                                className={`p-3 rounded-full bg-black/30 backdrop-blur-xl border border-white/5 shadow-xl text-white transition-colors ${showComments ? "text-primary border-primary/20" : "hover:text-primary/80"}`}
+                                className={`p-2.5 rounded-full bg-black/30 backdrop-blur-xl border border-white/5 shadow-xl text-white transition-colors ${showComments ? "text-primary border-primary/20" : "hover:text-primary/80"}`}
                                 title="Comments"
                             >
-                                <MessageCircle className="w-7 h-7" />
+                                <MessageCircle className="w-6 h-6" />
                             </motion.button>
-                            <span className="text-[12px] font-black text-white mt-1.5 drop-shadow-lg tabular-nums">
+                            <span className="text-[11px] font-black text-white mt-1 drop-shadow-lg tabular-nums">
                                 {post.comment_count || 0}
                             </span>
                         </div>

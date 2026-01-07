@@ -136,8 +136,8 @@ export default function TechSupportDashboard({ userDisplayName }: { userDisplayN
                     <MessageSquareIcon className="w-5 h-5 text-indigo-500" />
                     <h2 className="text-xl font-bold text-slate-800 dark:text-slate-200">Team Feed (Kathaipom)</h2>
                 </div>
-                <Card className="border-none shadow-xl bg-white/80 dark:bg-slate-900/80 backdrop-blur-sm overflow-hidden rounded-2xl ring-1 ring-slate-100 dark:ring-slate-800 h-[400px]">
-                    <KathaipomFeed />
+                <Card className="border-none shadow-xl bg-white/80 dark:bg-slate-900/80 backdrop-blur-sm overflow-hidden rounded-2xl ring-1 ring-slate-100 dark:ring-slate-800 h-[450px]">
+                    <KathaipomFeed isHorizontal={true} />
                 </Card>
             </div>
 

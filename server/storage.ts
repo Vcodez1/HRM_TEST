@@ -158,6 +158,25 @@ export interface IStorage {
   addStudentToClass(classId: number, leadId: number): Promise<ClassStudent>;
   removeStudentFromClass(classId: number, leadId: number): Promise<void>;
   getClassStudents(classId: number): Promise<Lead[]>;
+
+  // Kathaipom (Social Feed) operations
+  createPost(userId: string, content: string, imageUrl?: string): Promise<any>;
+  getPosts(limit?: number, offset?: number): Promise<any[]>;
+  getPostById(postId: number): Promise<any | undefined>;
+  deletePost(postId: number): Promise<void>;
+  likePost(postId: number, userId: string): Promise<{ liked: boolean }>;
+  unlikePost(postId: number, userId: string): Promise<void>;
+  dislikePost(postId: number, userId: string): Promise<{ disliked: boolean }>;
+  getPostLikes(postId: number): Promise<any[]>;
+  addComment(postId: number, userId: string, userName: string, userEmail: string, commentText: string): Promise<any>;
+  getPostComments(postId: number): Promise<any[]>;
+
+  // Tech Support Dashboard operations
+  getTechSupportMetrics(mentorEmail: string): Promise<{
+    totalClasses: number;
+    totalStudents: number;
+    recentRecords: any[];
+  }>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -1179,7 +1198,7 @@ RETURNING *
     return result.rows[0];
   }
 
-  async getPosts(limit: number = 50, offset: number = 0): Promise<any[]> {
+  async getPosts(limit: number = 50, offset: number = 0, viewerUserId?: string): Promise<any[]> {
     const result: any = await db.execute(sql`
 SELECT
 p.*,
@@ -1187,7 +1206,10 @@ p.*,
   u.full_name as author_name,
   u.email as author_email,
   (SELECT COUNT(*)::int FROM post_likes WHERE post_id = p.id) as like_count,
-    (SELECT COUNT(*)::int FROM post_comments WHERE post_id = p.id) as comment_count
+    (SELECT COUNT(*)::int FROM post_dislikes WHERE post_id = p.id) as dislike_count,
+    (SELECT COUNT(*)::int FROM post_comments WHERE post_id = p.id) as comment_count,
+    ${viewerUserId ? sql`(SELECT EXISTS(SELECT 1 FROM post_likes WHERE post_id = p.id AND user_id = ${viewerUserId})) as user_has_liked,` : sql`false as user_has_liked,`}
+    ${viewerUserId ? sql`(SELECT EXISTS(SELECT 1 FROM post_dislikes WHERE post_id = p.id AND user_id = ${viewerUserId})) as user_has_disliked` : sql`false as user_has_disliked`}
       FROM posts p
       LEFT JOIN users u ON p.user_id = u.id
       ORDER BY p.created_at DESC
@@ -1196,7 +1218,7 @@ p.*,
     return result.rows;
   }
 
-  async getPostById(postId: number): Promise<any | undefined> {
+  async getPostById(postId: number, viewerUserId?: string): Promise<any | undefined> {
     const result: any = await db.execute(sql`
 SELECT
 p.*,
@@ -1204,7 +1226,10 @@ p.*,
   u.full_name as author_name,
   u.email as author_email,
   (SELECT COUNT(*)::int FROM post_likes WHERE post_id = p.id) as like_count,
-    (SELECT COUNT(*)::int FROM post_comments WHERE post_id = p.id) as comment_count
+    (SELECT COUNT(*)::int FROM post_dislikes WHERE post_id = p.id) as dislike_count,
+    (SELECT COUNT(*)::int FROM post_comments WHERE post_id = p.id) as comment_count,
+    ${viewerUserId ? sql`(SELECT EXISTS(SELECT 1 FROM post_likes WHERE post_id = p.id AND user_id = ${viewerUserId})) as user_has_liked,` : sql`false as user_has_liked,`}
+    ${viewerUserId ? sql`(SELECT EXISTS(SELECT 1 FROM post_dislikes WHERE post_id = p.id AND user_id = ${viewerUserId})) as user_has_disliked` : sql`false as user_has_disliked`}
       FROM posts p
       LEFT JOIN users u ON p.user_id = u.id
       WHERE p.id = ${postId}
@@ -1219,9 +1244,8 @@ p.*,
   async likePost(postId: number, userId: string): Promise<{ liked: boolean }> {
     const logPath = path.join(process.cwd(), 'kathaipom_debug.log');
     try {
-      // Append to a debug file we can read
-      const logMsg = `${new Date().toISOString()} [STORAGE] LIKING - Post: ${postId}, User: ${userId} \n`;
-      fs.appendFileSync(logPath, logMsg);
+      // Mutually exclusive: remove dislike if liking
+      await db.execute(sql`DELETE FROM post_dislikes WHERE post_id = ${postId} AND user_id = ${userId}`);
 
       // Check if already liked
       const existing: any = await db.execute(sql`
@@ -1233,7 +1257,6 @@ SELECT * FROM post_likes WHERE post_id = ${postId} AND user_id = ${userId}
         await db.execute(sql`
           DELETE FROM post_likes WHERE post_id = ${postId} AND user_id = ${userId}
 `);
-        fs.appendFileSync(logPath, `[STORAGE] UNLIKED SUCCESS\n`);
         return { liked: false };
       } else {
         // Like
@@ -1241,11 +1264,41 @@ SELECT * FROM post_likes WHERE post_id = ${postId} AND user_id = ${userId}
           INSERT INTO post_likes(post_id, user_id)
 VALUES(${postId}, ${userId})
   `);
-        fs.appendFileSync(logPath, `[STORAGE] LIKED SUCCESS\n`);
         return { liked: true };
       }
     } catch (err: any) {
-      fs.appendFileSync(logPath, `[STORAGE] ERROR: ${err.message} \n`);
+      fs.appendFileSync(logPath, `[STORAGE] ERROR in likePost: ${err.message} \n`);
+      throw err;
+    }
+  }
+
+  async dislikePost(postId: number, userId: string): Promise<{ disliked: boolean }> {
+    const logPath = path.join(process.cwd(), 'kathaipom_debug.log');
+    try {
+      // Mutually exclusive: remove like if disliking
+      await db.execute(sql`DELETE FROM post_likes WHERE post_id = ${postId} AND user_id = ${userId}`);
+
+      // Check if already disliked
+      const existing: any = await db.execute(sql`
+SELECT * FROM post_dislikes WHERE post_id = ${postId} AND user_id = ${userId}
+`);
+
+      if (existing.rows && existing.rows.length > 0) {
+        // Remove dislike
+        await db.execute(sql`
+          DELETE FROM post_dislikes WHERE post_id = ${postId} AND user_id = ${userId}
+`);
+        return { disliked: false };
+      } else {
+        // Dislike
+        await db.execute(sql`
+          INSERT INTO post_dislikes(post_id, user_id)
+VALUES(${postId}, ${userId})
+  `);
+        return { disliked: true };
+      }
+    } catch (err: any) {
+      fs.appendFileSync(logPath, `[STORAGE] ERROR in dislikePost: ${err.message} \n`);
       throw err;
     }
   }

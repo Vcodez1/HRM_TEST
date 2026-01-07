@@ -3641,10 +3641,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const limit = parseInt(req.query.limit as string) || 50;
       const offset = parseInt(req.query.offset as string) || 0;
-
-      const posts = await storage.getPosts(limit, offset);
-
-      // For each post, get if current user has liked it
       let userId = req.user.claims.sub;
       const email = req.user.claims.email;
 
@@ -3658,13 +3654,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const logMsg = `${new Date().toISOString()} [ROUTE] GET POSTS - Email: ${email}, Resolved ID: ${userId}\n`;
       fs.appendFileSync(logPath, logMsg);
 
-      const postsWithUserLike = await Promise.all(posts.map(async (post: any) => {
-        const likes = await storage.getPostLikes(post.id);
-        const userHasLiked = likes.some((like: any) => like.user_id === userId);
-        return { ...post, user_has_liked: userHasLiked };
-      }));
-
-      res.json(postsWithUserLike);
+      const fetchedPosts = await storage.getPosts(limit, offset, userId);
+      res.json(fetchedPosts);
     } catch (error) {
       console.error('Error fetching posts:', error);
       res.status(500).json({ message: 'Failed to fetch posts' });
@@ -3703,17 +3694,29 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const dbUser = await storage.getUserByEmail(email);
       if (dbUser) userId = dbUser.id;
 
-      const logPath = path.join(process.cwd(), 'kathaipom_debug.log');
-      const logMsg = `${new Date().toISOString()} [ROUTE] LIKE REQUEST - Email: ${email}, Resolved ID: ${userId}, Post: ${postId}\n`;
-      fs.appendFileSync(logPath, logMsg);
-
       const result = await storage.likePost(postId, userId);
       res.json(result);
     } catch (error: any) {
-      const logPath = path.join(process.cwd(), 'kathaipom_debug.log');
-      const errMsg = `${new Date().toISOString()} [ROUTE] LIKE ERROR: ${error.message}\n`;
-      fs.appendFileSync(logPath, errMsg);
+      console.error('Like error:', error);
       res.status(500).json({ message: 'Failed to like post' });
+    }
+  });
+
+  // Toggle dislike on a post
+  app.post('/api/kathaipom/posts/:id/dislike', isAuthenticated, async (req: any, res) => {
+    try {
+      const email = req.user.claims.email;
+      let userId = req.user.claims.sub;
+      const postId = parseInt(req.params.id);
+
+      const dbUser = await storage.getUserByEmail(email);
+      if (dbUser) userId = dbUser.id;
+
+      const result = await storage.dislikePost(postId, userId);
+      res.json(result);
+    } catch (error: any) {
+      console.error('Dislike error:', error);
+      res.status(500).json({ message: 'Failed to dislike post' });
     }
   });
 
