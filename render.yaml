@@ -1,10 +1,10 @@
-# Updated: 2026-01-06 - Fixed session configuration for production HTTPS
+# Updated: 2026-01-08 - Fixed student enrollment by adding startup migrations
 services:
   - type: web
     name: HRM_TEST
     runtime: node
     plan: free
-    buildCommand: npm install && npm run db:push && npm run build
+    buildCommand: npm install && npm run build
     startCommand: npm start
     envVars:
       - key: NODE_ENV

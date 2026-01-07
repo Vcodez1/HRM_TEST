@@ -55,6 +55,11 @@ async function runDatabaseMigrations() {
     await db.execute(sql`ALTER TABLE classes ADD COLUMN IF NOT EXISTS mentor_email TEXT`);
     await db.execute(sql`ALTER TABLE classes ADD COLUMN IF NOT EXISTS mode TEXT`);
     console.log('[Migration] Classes table schema updated successfully');
+
+    // Add missing columns to class_students table
+    await db.execute(sql`ALTER TABLE class_students ADD COLUMN IF NOT EXISTS student_id TEXT`);
+    await db.execute(sql`ALTER TABLE class_students ADD COLUMN IF NOT EXISTS joined_at TIMESTAMP DEFAULT NOW()`);
+    console.log('[Migration] class_students table schema updated successfully');
   } catch (error: any) {
     console.error('[Migration] Error updating schema:', error.message);
     // Don't fail startup, the columns might already exist
