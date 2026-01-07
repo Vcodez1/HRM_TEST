@@ -3928,15 +3928,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       const userId = req.user.claims.sub;
       const user = await storage.getUser(userId);
+      const cls = await storage.getClass(classId);
+
+      if (!cls) {
+        return res.status(404).json({ message: 'Class not found' });
+      }
 
       // Fetch existing mappings
       let mappings = await storage.getClassStudentMappings(classId);
 
+      // STEP 1: Auto-enrollment (Tech Support only)
       // If no students enrolled yet, and it's a tech-support mentor,
       // try to auto-enroll leads assigned to them that are not in any class
       if (mappings.length === 0 && user?.role === 'tech-support') {
-        const cls = await storage.getClass(classId);
-        if (cls && cls.mentorEmail?.toLowerCase() === user.email?.toLowerCase()) {
+        if (cls.mentorEmail?.toLowerCase() === user.email?.toLowerCase()) {
           const mentorLeads = await storage.getLeadsByOwner(user.id);
           const enrollableLeads = mentorLeads.filter(l =>
             (l.status === 'ready_for_class' || l.status === 'register') &&
@@ -3946,7 +3951,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           if (enrollableLeads.length > 0) {
             console.log(`[student-mappings] Auto-enrolling ${enrollableLeads.length} leads for mentor ${user.email}`);
             for (const lead of enrollableLeads) {
-              // Only enroll if not already in another class to be safe
+              // Only enroll if not already in another class
               const inClass = await storage.isStudentInAnyClass(lead.id);
               if (!inClass) {
                 await storage.addStudentToClass(classId, lead.id);
@@ -3954,25 +3959,36 @@ export async function registerRoutes(app: Express): Promise<Server> {
             }
             // Re-fetch mappings after auto-enrollment
             mappings = await storage.getClassStudentMappings(classId);
+          }
+        }
+      }
 
-            // Auto-generate student IDs after enrollment
-            if (mappings.length > 0) {
-              const subject = cls.subject || cls.name || 'Student';
-              // Sort mappings by joinedAt to provide sequential IDs
-              const sortedMappings = mappings.sort((a, b) =>
-                new Date(a.joinedAt!).getTime() - new Date(b.joinedAt!).getTime()
-              );
+      // STEP 2: Auto-generate IDs (All roles)
+      // Check if any students are missing IDs and generate them
+      if (mappings.length > 0) {
+        const studentsWithoutIds = mappings.filter(m => !m.studentId);
 
-              for (let i = 0; i < sortedMappings.length; i++) {
-                const studentId = `${subject}-${(i + 1).toString().padStart(2, '0')}`;
-                await storage.updateStudentId(classId, sortedMappings[i].leadId, studentId);
-              }
+        if (studentsWithoutIds.length > 0) {
+          console.log(`[student-mappings] Auto-generating IDs for ${studentsWithoutIds.length} students`);
+          const subject = cls.subject || cls.name || 'Student';
 
-              // Re-fetch mappings after ID generation
-              mappings = await storage.getClassStudentMappings(classId);
-              console.log(`[student-mappings] Auto-generated IDs for ${mappings.length} students`);
+          // Sort ALL mappings by joinedAt to maintain sequential order
+          const sortedMappings = mappings.sort((a, b) =>
+            new Date(a.joinedAt!).getTime() - new Date(b.joinedAt!).getTime()
+          );
+
+          // Generate IDs for all students to ensure proper sequence
+          for (let i = 0; i < sortedMappings.length; i++) {
+            const studentId = `${subject}-${(i + 1).toString().padStart(2, '0')}`;
+            // Only update if the ID is different or missing
+            if (sortedMappings[i].studentId !== studentId) {
+              await storage.updateStudentId(classId, sortedMappings[i].leadId, studentId);
             }
           }
+
+          // Re-fetch mappings after ID generation
+          mappings = await storage.getClassStudentMappings(classId);
+          console.log(`[student-mappings] Successfully generated IDs for students in class ${classId}`);
         }
       }
 
@@ -3991,6 +4007,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       res.json(students);
     } catch (error: any) {
+      console.error('[student-mappings] Error:', error);
       res.status(500).json({ message: 'Failed to fetch student mappings', error: error.message });
     }
   });
