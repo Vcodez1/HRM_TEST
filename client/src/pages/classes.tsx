@@ -406,7 +406,7 @@ export default function MyClassesPage() {
                                         <Button
                                             variant="outline"
                                             className="flex-1 rounded-xl h-11 border-amber-400/30 text-amber-600 hover:bg-amber-50 gap-2"
-                                            onClick={() => setLocation(`/classes/${cls.id}/students`)}
+                                            onClick={() => setLocation(`/classes/${cls.id}/marks`)}
                                         >
                                             <Award className="h-4 w-4" /> Mark
                                         </Button>

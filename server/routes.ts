@@ -4277,6 +4277,32 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Save all marks for a class (bulk save)
+  app.post('/api/classes/:id/marks/bulk', isAuthenticated, async (req: any, res) => {
+    try {
+      const classId = parseInt(req.params.id);
+      const { marks: marksDataArray } = req.body;
+
+      if (!Array.isArray(marksDataArray)) {
+        return res.status(400).json({ message: 'Marks must be an array' });
+      }
+
+      const results = [];
+      for (const markData of marksDataArray) {
+        const parsedMark = insertMarksSchema.parse({
+          ...markData,
+          classId
+        });
+        const result = await storage.addMark(parsedMark);
+        results.push(result);
+      }
+
+      res.json({ message: 'All marks saved successfully', count: results.length });
+    } catch (error: any) {
+      res.status(400).json({ message: 'Failed to save marks', error: error.message });
+    }
+  });
+
   // Update specific student ID
   app.patch('/api/classes/:id/students/:leadId/student-id', isAuthenticated, async (req: any, res) => {
     try {

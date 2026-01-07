@@ -194,11 +194,14 @@ export const marks = pgTable("marks", {
   id: integer("id").primaryKey().generatedByDefaultAsIdentity(),
   classId: integer("class_id").references(() => classes.id, { onDelete: 'cascade' }).notNull(),
   leadId: integer("lead_id").references(() => leads.id, { onDelete: 'cascade' }).notNull(),
-  subject: text("subject").notNull(),
-  score: decimal("score", { precision: 5, scale: 2 }),
-  maxScore: decimal("max_score", { precision: 5, scale: 2 }),
-  date: date("date").notNull(),
+  assessment1: integer("assessment1").default(0), // 0-10
+  assessment2: integer("assessment2").default(0), // 0-10
+  task: integer("task").default(0), // 0-10
+  project: integer("project").default(0), // 0-10
+  finalValidation: integer("final_validation").default(0), // 0-10
+  total: integer("total").default(0), // Auto-calculated: sum of all (0-50)
   createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
 });
 
 // Email Configuration Table
@@ -316,6 +319,7 @@ export const insertAttendanceSchema = createInsertSchema(attendance).omit({
 export const insertMarksSchema = createInsertSchema(marks).omit({
   id: true,
   createdAt: true,
+  updatedAt: true,
 });
 
 export const insertLeadSchema = createInsertSchema(leads).omit({

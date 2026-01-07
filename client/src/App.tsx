@@ -30,6 +30,7 @@ import Kathaipom from "@/pages/kathaipom";
 import TechDocs from "@/pages/tech-docs";
 import EmailSettings from "@/pages/EmailSettings";
 import TestEmail from "@/pages/TestEmail";
+import ClassMarksPage from "@/pages/class-marks";
 import NotFound from "@/pages/not-found";
 
 function Router() {
@@ -66,6 +67,7 @@ function Router() {
             <Route path="/my-completion" component={MyCompletion} />
             <Route path="/allocated-students" component={AllocatedStudentsPage} />
             <Route path="/classes/:id/students" component={ClassStudentsPage} />
+            <Route path="/classes/:id/marks" component={ClassMarksPage} />
             <Route path="/classes" component={MyClasses} />
             <Route path="/users" component={Users} />
             <Route path="/reports" component={Reports} />

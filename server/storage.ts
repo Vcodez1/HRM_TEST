@@ -1620,8 +1620,38 @@ c.*,
   }
 
   async addMark(markData: InsertMark): Promise<Mark> {
-    const [newMark] = await db.insert(marks).values(markData).returning();
-    return newMark;
+    // Check if mark already exists for this class and lead
+    const existing = await db
+      .select()
+      .from(marks)
+      .where(and(
+        eq(marks.classId, markData.classId),
+        eq(marks.leadId, markData.leadId)
+      ))
+      .limit(1);
+
+    // Calculate total
+    const total = (markData.assessment1 || 0) +
+      (markData.assessment2 || 0) +
+      (markData.task || 0) +
+      (markData.project || 0) +
+      (markData.finalValidation || 0);
+
+    const dataWithTotal = { ...markData, total };
+
+    if (existing.length > 0) {
+      // Update existing
+      const [updated] = await db
+        .update(marks)
+        .set({ ...dataWithTotal, updatedAt: new Date() })
+        .where(eq(marks.id, existing[0].id))
+        .returning();
+      return updated;
+    } else {
+      // Insert new
+      const [inserted] = await db.insert(marks).values(dataWithTotal).returning();
+      return inserted;
+    }
   }
 
   async getMarks(classId: number): Promise<Mark[]> {
