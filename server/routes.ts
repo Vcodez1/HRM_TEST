@@ -163,7 +163,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.post('/api/email-config/test', isAuthenticated, async (req: any, res) => {
     try {
+      // Log the complete request body to debug what's being received
+      console.log('[POST /api/email-config/test] ═══════════════════════════════════');
+      console.log('[POST /api/email-config/test] Request body:', JSON.stringify(req.body, null, 2));
+
       const { testEmail, config } = req.body;
+      console.log('[POST /api/email-config/test] Extracted testEmail:', testEmail);
       console.log('[POST /api/email-config/test] Starting test email to:', testEmail);
 
       // Debug: Log environment variable status
