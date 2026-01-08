@@ -103,9 +103,23 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Email Configuration routes
   app.get('/api/email-config', isAuthenticated, async (req: any, res) => {
     try {
-      console.log('[GET /api/email-config] Fetching email config...');
+      console.log('[GET /api/email-config] Fetching email config from database...');
       const config = await storage.getEmailConfig();
-      console.log('[GET /api/email-config] Config retrieved:', config ? 'Found' : 'Not found', config ? { hasEmail: !!config.smtpEmail, hasPassword: !!config.appPassword } : null);
+
+      if (config) {
+        console.log('[GET /api/email-config] ✓ Found config in database:', {
+          id: config.id,
+          email: config.smtpEmail?.substring(0, 5) + '...',
+          hasPassword: !!config.appPassword,
+          server: config.smtpServer,
+          port: config.smtpPort,
+          isEnabled: config.isEnabled
+        });
+      } else {
+        console.log('[GET /api/email-config] ✗ No config found in database');
+        console.log('[GET /api/email-config] User should save config via /email-settings page');
+      }
+
       res.json(config || {});
     } catch (error: any) {
       console.error('[GET /api/email-config] Error:', error);
@@ -115,15 +129,34 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.post('/api/email-config', isAuthenticated, async (req: any, res) => {
     try {
-      console.log('[POST /api/email-config] Saving email config:', { hasEmail: !!req.body.smtpEmail, hasPassword: !!req.body.appPassword, server: req.body.smtpServer, port: req.body.smtpPort });
+      console.log('[POST /api/email-config] ═══════════════════════════════════');
+      console.log('[POST /api/email-config] Saving email config to database...');
+      console.log('[POST /api/email-config] Request body:', {
+        smtpEmail: req.body.smtpEmail,
+        hasPassword: !!req.body.appPassword,
+        passwordLength: req.body.appPassword?.length || 0,
+        smtpServer: req.body.smtpServer,
+        smtpPort: req.body.smtpPort,
+        isEnabled: req.body.isEnabled
+      });
+
       if (req.user.role !== 'admin' && req.user.role !== 'manager' && req.user.role !== 'tech-support') {
         return res.status(403).json({ message: "Only admins, managers, and tech-support can update email configuration" });
       }
+
+      // Validate required fields
+      if (!req.body.smtpEmail || !req.body.appPassword || !req.body.smtpServer) {
+        console.log('[POST /api/email-config] ✗ Missing required fields');
+        return res.status(400).json({ message: "Missing required fields: smtpEmail, appPassword, smtpServer" });
+      }
+
       const config = await storage.updateEmailConfig(req.body);
-      console.log('[POST /api/email-config] Config saved successfully:', config.id);
+      console.log('[POST /api/email-config] ✓ Config saved successfully to database!');
+      console.log('[POST /api/email-config] Saved config ID:', config.id);
+      console.log('[POST /api/email-config] ═══════════════════════════════════');
       res.json(config);
     } catch (error: any) {
-      console.error('[POST /api/email-config] Error:', error);
+      console.error('[POST /api/email-config] ✗ Error saving config:', error);
       res.status(500).json({ message: "Failed to update email configuration", error: error.message });
     }
   });
