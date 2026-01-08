@@ -32,10 +32,27 @@ export default function TestEmail() {
             return response.json();
         },
         onSuccess: () => {
-            toast({ title: "Success", description: "Test email sent successfully! Please check your inbox." });
+            toast({
+                title: "✓ Success",
+                description: "Test email sent successfully! Please check your inbox."
+            });
         },
         onError: (error: any) => {
-            toast({ title: "Error", description: error.message, variant: "destructive" });
+            const errorMsg = error.message || "Failed to send test email";
+            const errorLines = errorMsg.split('\n');
+
+            toast({
+                title: "✗ Error",
+                description: (
+                    <div className="space-y-1">
+                        {errorLines.map((line: string, i: number) => (
+                            <div key={i}>{line}</div>
+                        ))}
+                    </div>
+                ),
+                variant: "destructive",
+                duration: 10000 // Show for 10 seconds for detailed errors
+            });
         },
     });
 

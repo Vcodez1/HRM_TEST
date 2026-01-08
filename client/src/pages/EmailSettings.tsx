@@ -34,8 +34,13 @@ import {
 const emailConfigSchema = z.object({
     smtpEmail: z.string().email("Valid email is required"),
     appPassword: z.string().min(1, "App password is required"),
-    smtpServer: z.string().min(1, "SMTP server is required"),
-    smtpPort: z.coerce.number().int().positive("Port must be a positive number"),
+    smtpServer: z.string().min(1, "SMTP server is required")
+        .regex(/^[a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(\.[a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)*$|^(\d{1,3}\.){3}\d{1,3}$/,
+            "Must be a valid hostname or IP address"),
+    smtpPort: z.coerce.number().int().refine(
+        (port) => [25, 465, 587, 2525].includes(port),
+        { message: "Port must be 25, 465, 587, or 2525 (common SMTP ports)" }
+    ),
     isEnabled: z.boolean().default(true),
 });
 

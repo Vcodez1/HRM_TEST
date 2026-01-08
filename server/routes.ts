@@ -144,24 +144,49 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ message: "Recipient email address is required" });
       }
 
+      // Validate email format
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      if (!emailRegex.test(testEmail)) {
+        return res.status(400).json({ message: "Invalid email address format" });
+      }
+
+      const isSSL = smtpConfig.smtpPort === 465;
+      const isTLS = smtpConfig.smtpPort === 587 || smtpConfig.smtpPort === 25 || smtpConfig.smtpPort === 2525;
+
       console.log('[POST /api/email-config/test] SMTP Config:', {
         host: smtpConfig.smtpServer,
         port: smtpConfig.smtpPort,
         user: smtpConfig.smtpEmail,
-        secure: smtpConfig.smtpPort === 465
+        secure: isSSL,
+        requireTLS: isTLS
       });
 
+      // Enhanced transporter configuration with better TLS handling
       const transporter = nodemailer.createTransport({
         host: smtpConfig.smtpServer,
         port: smtpConfig.smtpPort,
-        secure: smtpConfig.smtpPort === 465,
+        secure: isSSL, // true for port 465, false for other ports
         auth: {
           user: smtpConfig.smtpEmail,
           pass: smtpConfig.appPassword,
         },
-        connectionTimeout: 10000, // 10 seconds
-        greetingTimeout: 10000,
-        socketTimeout: 15000,
+        // Enhanced timeout configuration
+        connectionTimeout: 30000, // 30 seconds - increased from 10s
+        greetingTimeout: 30000,
+        socketTimeout: 30000,
+        // TLS configuration for better compatibility
+        requireTLS: isTLS, // Require TLS for ports 587, 25, 2525
+        tls: {
+          // Don't fail on invalid certs (for testing, but be careful in production)
+          rejectUnauthorized: true,
+          // Minimum TLS version
+          minVersion: 'TLSv1.2',
+          // Additional cipher configuration for compatibility
+          ciphers: 'SSLv3'
+        },
+        // Enable debugging
+        debug: process.env.NODE_ENV !== 'production',
+        logger: process.env.NODE_ENV !== 'production'
       });
 
       console.log('[POST /api/email-config/test] Verifying transporter...');
@@ -169,12 +194,30 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Verify SMTP connection first
       try {
         await transporter.verify();
-        console.log('[POST /api/email-config/test] SMTP connection verified successfully');
+        console.log('[POST /api/email-config/test] ✓ SMTP connection verified successfully');
       } catch (verifyError: any) {
-        console.error('[POST /api/email-config/test] SMTP verification failed:', verifyError.message);
+        console.error('[POST /api/email-config/test] ✗ SMTP verification failed:', verifyError.message);
+        console.error('[POST /api/email-config/test] Error code:', verifyError.code);
+        console.error('[POST /api/email-config/test] Error details:', verifyError);
+
+        let detailedMessage = "SMTP connection failed. ";
+
+        if (verifyError.code === 'EAUTH') {
+          detailedMessage += "Authentication failed. Please verify:\n- Email address is correct\n- You're using an App Password (not your regular password)\n- App Password has no spaces";
+        } else if (verifyError.code === 'ENOTFOUND') {
+          detailedMessage += `DNS lookup failed for ${smtpConfig.smtpServer}. Please check:\n- SMTP server address is correct\n- You have internet connectivity`;
+        } else if (verifyError.code === 'ECONNECTION' || verifyError.code === 'ETIMEDOUT') {
+          detailedMessage += `Connection to ${smtpConfig.smtpServer}:${smtpConfig.smtpPort} failed. Please check:\n- Port ${smtpConfig.smtpPort} is correct (587 for TLS, 465 for SSL)\n- Firewall is not blocking outbound connections\n- SMTP server is accessible`;
+        } else if (verifyError.code === 'ESOCKET') {
+          detailedMessage += "Network error. Please check your internet connection.";
+        } else {
+          detailedMessage += verifyError.message;
+        }
+
         return res.status(400).json({
-          message: "SMTP connection failed. Please check your credentials.",
-          error: verifyError.message
+          message: detailedMessage,
+          error: verifyError.message,
+          errorCode: verifyError.code
         });
       }
 
@@ -188,21 +231,32 @@ export async function registerRoutes(app: Express): Promise<Server> {
         html: "<h2>🎉 Success!</h2><p>This is a test email from your <b>HRM Portal</b> to verify SMTP settings.</p><p>If you received this, your email configuration is working correctly!</p>",
       });
 
-      console.log('[POST /api/email-config/test] Test email sent successfully to:', testEmail);
+      console.log('[POST /api/email-config/test] ✓ Test email sent successfully to:', testEmail);
       res.json({ message: "Test email sent successfully! Check your inbox." });
     } catch (error: any) {
-      console.error('[POST /api/email-config/test] Error:', error);
+      console.error('[POST /api/email-config/test] ✗ Error:', error);
+      console.error('[POST /api/email-config/test] Error code:', error.code);
+      console.error('[POST /api/email-config/test] Error stack:', error.stack);
+
       let userMessage = "Failed to send test email";
 
       if (error.code === 'EAUTH') {
-        userMessage = "Authentication failed. Please check your email and app password.";
+        userMessage = "Authentication failed. Please verify:\n- Email address is correct\n- You're using an App Password (for Gmail, generate at https://myaccount.google.com/apppasswords)\n- App Password has no spaces or dashes";
+      } else if (error.code === 'ENOTFOUND') {
+        userMessage = "Could not find SMTP server. Please check the server address is correct.";
       } else if (error.code === 'ECONNECTION' || error.code === 'ETIMEDOUT') {
-        userMessage = "Connection timed out. Please check your SMTP server and port settings.";
+        userMessage = "Connection timed out. Please check:\n- SMTP server and port are correct\n- Firewall is not blocking the connection\n- You have internet connectivity";
       } else if (error.code === 'ESOCKET') {
         userMessage = "Network error. Please check your internet connection.";
+      } else if (error.message) {
+        userMessage = `Error: ${error.message}`;
       }
 
-      res.status(500).json({ message: userMessage, error: error.message });
+      res.status(500).json({
+        message: userMessage,
+        error: error.message,
+        errorCode: error.code
+      });
     }
   });
 
