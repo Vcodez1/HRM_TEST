@@ -70,11 +70,11 @@ export default function ClassMarksPage() {
 
     // Initialize local marks from existing data
     useEffect(() => {
-        if (students && existingMarks) {
+        if (students) {
             const marksMap: Record<number, StudentMark> = {};
 
             students.forEach(student => {
-                const existing = existingMarks.find(m => m.leadId === student.id);
+                const existing = existingMarks?.find(m => m.leadId === student.id);
                 marksMap[student.id] = {
                     leadId: student.id,
                     studentName: student.name,
@@ -370,8 +370,8 @@ export default function ClassMarksPage() {
                                             </TableCell>
                                             <TableCell className="text-center">
                                                 <span className={`inline-flex items-center justify-center w-12 h-8 rounded-lg font-bold text-sm ${mark.total >= 40 ? 'bg-emerald-100 text-emerald-700' :
-                                                        mark.total >= 25 ? 'bg-amber-100 text-amber-700' :
-                                                            'bg-red-100 text-red-700'
+                                                    mark.total >= 25 ? 'bg-amber-100 text-amber-700' :
+                                                        'bg-red-100 text-red-700'
                                                     }`}>
                                                     {mark.total}/50
                                                 </span>

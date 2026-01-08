@@ -174,7 +174,7 @@ export default function MyClassesPage() {
         return (
             <div className="flex h-screen bg-[#F1F5F9]">
                 <Sidebar />
-                <main className="flex-1 p-8">
+                <main className="flex-1 p-8 ml-64">
                     <div className="animate-pulse space-y-4">
                         <div className="h-8 w-48 bg-gray-200 rounded"></div>
                         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -191,7 +191,7 @@ export default function MyClassesPage() {
     return (
         <div className="flex h-screen bg-[#F1F5F9]">
             <Sidebar />
-            <main className="flex-1 p-8 overflow-y-auto">
+            <main className="flex-1 p-8 overflow-y-auto ml-64">
                 <div className="max-w-7xl mx-auto space-y-8">
                     <Button
                         variant="outline"

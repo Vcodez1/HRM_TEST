@@ -253,7 +253,7 @@ export default function ClassStudentsPage() {
                             <Button
                                 variant="outline"
                                 className="border-amber-400 text-amber-600 hover:bg-amber-50 gap-2 h-10 px-5 rounded-lg bg-white"
-                                onClick={() => toast({ title: "Coming Soon", description: "Marks management feature is under construction" })}
+                                onClick={() => setLocation(`/classes/${classId}/marks`)}
                             >
                                 <Trophy className="h-4 w-4" />
                                 Marks
@@ -360,6 +360,7 @@ export default function ClassStudentsPage() {
                                                         variant="outline"
                                                         size="sm"
                                                         className="h-8 border-indigo-200 text-indigo-700 bg-indigo-50 hover:bg-indigo-100 gap-1.5 text-xs font-bold rounded-md"
+                                                        onClick={() => setLocation(`/classes/${classId}/marks`)}
                                                     >
                                                         <Trophy className="h-3 w-3" /> Marks
                                                     </Button>

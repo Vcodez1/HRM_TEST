@@ -4289,6 +4289,72 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Marks endpoints
+  app.get('/api/classes/:id/marks', isAuthenticated, async (req: any, res) => {
+    try {
+      const classId = parseInt(req.params.id);
+      if (isNaN(classId)) return res.status(400).json({ message: 'Invalid class ID' });
+
+      console.log(`[GET marks] Fetching marks for class ${classId}`);
+      const marks = await storage.getMarks(classId);
+      console.log(`[GET marks] Found ${marks.length} marks`);
+      res.json(marks);
+    } catch (error: any) {
+      console.error('[GET marks] Error:', error);
+      res.status(500).json({ message: 'Failed to fetch marks', error: error.message });
+    }
+  });
+
+  app.post('/api/classes/:id/marks', isAuthenticated, async (req: any, res) => {
+    try {
+      const classId = parseInt(req.params.id);
+      if (isNaN(classId)) return res.status(400).json({ message: 'Invalid class ID' });
+
+      console.log(`[POST mark] Saving mark for lead ${req.body.leadId} in class ${classId}`);
+      const markData = {
+        ...req.body,
+        classId,
+        leadId: req.body.leadId,
+      };
+
+      const mk = await storage.addMark(markData);
+      res.json(mk);
+    } catch (error: any) {
+      console.error('[POST mark] Error:', error);
+      res.status(500).json({ message: 'Failed to save mark', error: error.message });
+    }
+  });
+
+  app.post('/api/classes/:id/marks/bulk', isAuthenticated, async (req: any, res) => {
+    try {
+      const classId = parseInt(req.params.id);
+      if (isNaN(classId)) return res.status(400).json({ message: 'Invalid class ID' });
+
+      console.log(`[POST marks bulk] Saving bulk marks for class ${classId}`);
+      const { marks: marksList } = req.body;
+      if (!Array.isArray(marksList)) {
+        return res.status(400).json({ message: 'Invalid marks data' });
+      }
+
+      const results = [];
+      for (const mark of marksList) {
+        const markData = {
+          ...mark,
+          classId
+        };
+        const mk = await storage.addMark(markData);
+        results.push(mk);
+      }
+      console.log(`[POST marks bulk] Saved ${results.length} marks`);
+
+      res.json(results);
+    } catch (error: any) {
+      console.error('[POST marks bulk] Error:', error);
+      res.status(500).json({ message: 'Failed to save marks', error: error.message });
+    }
+  });
+
+
   // Bulk generate Student IDs for a class
   app.post('/api/classes/:id/generate-student-ids', isAuthenticated, async (req: any, res) => {
     try {
