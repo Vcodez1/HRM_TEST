@@ -4431,7 +4431,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const emailConfig = await storage.getEmailConfig(req.user.id);
       const resendKey = process.env.RESEND_API_KEY;
 
-      console.log(`[POST attendance bulk] Class: ${classObj?.name}, Current Identity: ${teacherName} (${teacherEmail}), Resend: ${!!resendKey}, SMTP: ${!!emailConfig}`);
+      console.log(`[POST attendance bulk] ═══════════════════════════════════`);
+      console.log(`[POST attendance bulk] Current User (req.user):`, {
+        id: req.user?.id,
+        email: req.user?.email,
+        fullName: req.user?.fullName,
+        firstName: req.user?.firstName,
+        role: req.user?.role
+      });
+      console.log(`[POST attendance bulk] Email Identity: ${teacherName} <${teacherEmail}>`);
+      console.log(`[POST attendance bulk] Email Config: Resend=${!!resendKey}, SMTP=${!!emailConfig}`);
+      if (emailConfig) {
+        console.log(`[POST attendance bulk] SMTP Config: ${emailConfig.smtpEmail?.substring(0, 8)}..., Server=${emailConfig.smtpServer}, Port=${emailConfig.smtpPort}`);
+      }
+      console.log(`[POST attendance bulk] ═══════════════════════════════════`);
 
       const results = [];
       for (const record of attendanceList) {
