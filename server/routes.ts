@@ -133,11 +133,35 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const { testEmail, config } = req.body;
       console.log('[POST /api/email-config/test] Starting test email to:', testEmail);
 
-      const smtpConfig = config || await storage.getEmailConfig();
+      // Try to get config from request, database, or environment variables (fallback for Render)
+      let smtpConfig = config || await storage.getEmailConfig();
 
+      // Fallback to environment variables if database config is missing
       if (!smtpConfig || !smtpConfig.smtpEmail || !smtpConfig.appPassword) {
-        console.log('[POST /api/email-config/test] Email configuration is incomplete');
-        return res.status(400).json({ message: "Email configuration is incomplete. Please save your settings first." });
+        console.log('[POST /api/email-config/test] Database config incomplete, checking environment variables...');
+
+        const envEmail = process.env.SMTP_EMAIL;
+        const envPassword = process.env.SMTP_PASSWORD;
+        const envServer = process.env.SMTP_SERVER || 'smtp.gmail.com';
+        const envPort = parseInt(process.env.SMTP_PORT || '587');
+
+        if (envEmail && envPassword) {
+          console.log('[POST /api/email-config/test] Using SMTP config from environment variables');
+          smtpConfig = {
+            id: 0, // Temporary ID for env-based config
+            smtpEmail: envEmail,
+            appPassword: envPassword,
+            smtpServer: envServer,
+            smtpPort: envPort,
+            isEnabled: true,
+            updatedAt: null
+          } as any; // Type assertion for env-based config
+        } else {
+          console.log('[POST /api/email-config/test] No valid SMTP config found in database or environment');
+          return res.status(400).json({
+            message: "Email configuration is incomplete. Please configure SMTP settings in /email-settings or set environment variables (SMTP_EMAIL, SMTP_PASSWORD, SMTP_SERVER, SMTP_PORT)."
+          });
+        }
       }
 
       if (!testEmail) {
@@ -270,9 +294,31 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.json({ message: "No absent students found to notify" });
       }
 
-      const smtpConfig = await storage.getEmailConfig();
+      // Try database config first, fallback to environment variables
+      let smtpConfig = await storage.getEmailConfig();
+
       if (!smtpConfig || !smtpConfig.smtpEmail || !smtpConfig.appPassword || !smtpConfig.isEnabled) {
-        return res.status(400).json({ message: "Email configuration is incomplete or disabled" });
+        console.log('[POST /api/tech-support/notify-students] Database config incomplete, checking environment variables...');
+
+        const envEmail = process.env.SMTP_EMAIL;
+        const envPassword = process.env.SMTP_PASSWORD;
+        const envServer = process.env.SMTP_SERVER || 'smtp.gmail.com';
+        const envPort = parseInt(process.env.SMTP_PORT || '587');
+
+        if (envEmail && envPassword) {
+          console.log('[POST /api/tech-support/notify-students] Using SMTP config from environment variables');
+          smtpConfig = {
+            id: 0,
+            smtpEmail: envEmail,
+            appPassword: envPassword,
+            smtpServer: envServer,
+            smtpPort: envPort,
+            isEnabled: true,
+            updatedAt: null
+          } as any;
+        } else {
+          return res.status(400).json({ message: "Email configuration is incomplete or disabled. Please configure SMTP settings or set environment variables." });
+        }
       }
 
       const transporter = nodemailer.createTransport({
