@@ -16,6 +16,7 @@ import fs from "fs";
 import path from "path";
 import nodemailer from "nodemailer";
 import { sendEmail } from "./email-service";
+import { format } from "date-fns";
 
 const upload = multer({
   storage: multer.memoryStorage(),
@@ -4424,6 +4425,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const emailConfig = await storage.getEmailConfig();
       const resendKey = process.env.RESEND_API_KEY;
 
+      console.log(`[POST attendance bulk] Class: ${classObj?.name}, Teacher: ${teacher?.fullName || teacher?.firstName}, Resend: ${!!resendKey}, SMTP: ${!!emailConfig}`);
+
       const results = [];
       for (const record of attendanceList) {
         const attendanceData = insertAttendanceSchema.parse({
@@ -4435,9 +4438,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
         // Send email if student is absent
         if (record.status === 'Absent') {
+          console.log(`[POST attendance bulk] Student ${record.leadId} marked Absent. Checking email trigger...`);
           try {
             const student = await storage.getLead(record.leadId);
             if (student && student.email && (resendKey || emailConfig)) {
+              console.log(`[POST attendance bulk] Sending email to student: ${student.email}`);
               const formattedDate = format(new Date(record.date), 'EEEE, MMMM dd, yyyy');
 
               const emailText = `Dear ${student.name},
