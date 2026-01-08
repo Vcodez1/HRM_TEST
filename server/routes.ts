@@ -4408,6 +4408,33 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Bulk mark attendance
+  app.post('/api/classes/:id/attendance/bulk', isAuthenticated, async (req: any, res) => {
+    try {
+      const classId = parseInt(req.params.id);
+      const { attendance: attendanceList } = req.body;
+
+      if (!Array.isArray(attendanceList)) {
+        return res.status(400).json({ message: 'Invalid attendance data format' });
+      }
+
+      const results = [];
+      for (const record of attendanceList) {
+        const attendanceData = insertAttendanceSchema.parse({
+          ...record,
+          classId
+        });
+        const result = await storage.markAttendance(attendanceData);
+        results.push(result);
+      }
+
+      res.json({ message: 'Attendance saved successfully', count: results.length, data: results });
+    } catch (error: any) {
+      console.error('[POST attendance bulk] Error:', error);
+      res.status(400).json({ message: 'Failed to save attendance', error: error.message });
+    }
+  });
+
   // Get marks for a class
   app.get('/api/classes/:id/marks', isAuthenticated, async (req: any, res) => {
     try {

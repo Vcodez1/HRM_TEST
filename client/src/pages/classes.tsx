@@ -398,7 +398,11 @@ export default function MyClassesPage() {
                                         >
                                             <Users className="h-4 w-4" /> Students
                                         </Button>
-                                        <Button variant="outline" className="flex-1 rounded-xl h-11 border-emerald-200 text-emerald-700 bg-emerald-50/50 hover:bg-emerald-100 gap-2">
+                                        <Button
+                                            variant="outline"
+                                            className="flex-1 rounded-xl h-11 border-emerald-200 text-emerald-700 bg-emerald-50/50 hover:bg-emerald-100 gap-2"
+                                            onClick={() => setLocation(`/classes/${cls.id}/attendance`)}
+                                        >
                                             <CheckCircle2 className="h-4 w-4" /> Attendance
                                         </Button>
                                     </div>

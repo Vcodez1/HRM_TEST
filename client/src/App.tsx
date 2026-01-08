@@ -16,6 +16,7 @@ import MyCompletion from "@/pages/my-completion";
 import Users from "@/pages/users";
 import MyClasses from "@/pages/classes";
 import ClassStudentsPage from "@/pages/class-students";
+import ClassAttendancePage from "@/pages/class-attendance";
 import AllocatedStudentsPage from "@/pages/allocated-students";
 import { isSessionOrganizer } from "@/lib/adminRoleUtils";
 
@@ -67,6 +68,7 @@ function Router() {
             <Route path="/my-completion" component={MyCompletion} />
             <Route path="/allocated-students" component={AllocatedStudentsPage} />
             <Route path="/classes/:id/students" component={ClassStudentsPage} />
+            <Route path="/classes/:id/attendance" component={ClassAttendancePage} />
             <Route path="/classes/:id/marks" component={ClassMarksPage} />
             <Route path="/classes" component={MyClasses} />
             <Route path="/users" component={Users} />
