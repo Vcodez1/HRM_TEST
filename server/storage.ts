@@ -1648,6 +1648,22 @@ c.*,
   }
 
   async addMark(markData: InsertMark): Promise<Mark> {
+    try {
+      return await this.performAddMark(markData);
+    } catch (error: any) {
+      // Check if error is due to missing table
+      if (error.code === '42P01' || error.message?.includes('relation "marks" does not exist')) {
+        console.log("[Storage] Marks table missing. Attempting to create...");
+        await this.initializeSchema();
+        // Retry operation
+        return await this.performAddMark(markData);
+      }
+      throw error;
+    }
+  }
+
+  // Extracted helper for addMark logic
+  private async performAddMark(markData: InsertMark): Promise<Mark> {
     // Check if mark already exists for this class and lead
     const existing = await db
       .select()
@@ -1683,7 +1699,16 @@ c.*,
   }
 
   async getMarks(classId: number): Promise<Mark[]> {
-    return await db.select().from(marks).where(eq(marks.classId, classId));
+    try {
+      return await db.select().from(marks).where(eq(marks.classId, classId));
+    } catch (error: any) {
+      if (error.code === '42P01' || error.message?.includes('relation "marks" does not exist')) {
+        console.log("[Storage] Marks table missing in getMarks. Attempting to create...");
+        await this.initializeSchema();
+        return await db.select().from(marks).where(eq(marks.classId, classId));
+      }
+      throw error;
+    }
   }
 
   async getTechSupportMetrics(mentorEmail: string): Promise<{
