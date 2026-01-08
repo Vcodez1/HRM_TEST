@@ -369,13 +369,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
       }
 
+      // At this point, smtpConfig is guaranteed to be defined (early return above if not)
+      const validConfig = smtpConfig!;
+
       const transporter = nodemailer.createTransport({
-        host: smtpConfig.smtpServer,
-        port: smtpConfig.smtpPort,
-        secure: smtpConfig.smtpPort === 465,
+        host: validConfig.smtpServer,
+        port: validConfig.smtpPort,
+        secure: validConfig.smtpPort === 465,
         auth: {
-          user: smtpConfig.smtpEmail,
-          pass: smtpConfig.appPassword,
+          user: validConfig.smtpEmail,
+          pass: validConfig.appPassword,
         },
       });
 
@@ -383,7 +386,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       for (const student of absentDetails) {
         try {
           await transporter.sendMail({
-            from: `"${process.env.APP_NAME || 'HRM Portal'}" <${smtpConfig.smtpEmail}>`,
+            from: `"${process.env.APP_NAME || 'HRM Portal'}" <${validConfig.smtpEmail}>`,
             to: student.studentEmail,
             subject: `Absence Notification - ${student.className}`,
             text: `Dear ${student.studentName},\n\nYou were marked absent for the ${student.className} class on ${student.date}. Please ensure you attend the next session.\n\nBest regards,\nVCodez Team`,
