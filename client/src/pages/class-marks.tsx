@@ -49,6 +49,12 @@ export default function ClassMarksPage() {
     const { toast } = useToast();
     const [localMarks, setLocalMarks] = useState<Record<number, StudentMark>>({});
     const [savingRows, setSavingRows] = useState<Set<number>>(new Set());
+    const [showFloatingSave, setShowFloatingSave] = useState(false);
+
+    const handleSaveSuccess = () => {
+        setShowFloatingSave(true);
+        setTimeout(() => setShowFloatingSave(false), 1000);
+    };
 
     // Fetch Class Info
     const { data: cls, isLoading: isClassLoading } = useQuery<any>({
@@ -135,8 +141,10 @@ export default function ClassMarksPage() {
                 const next = new Set(prev);
                 next.delete(leadId);
                 return next;
+                return next;
             });
-            toast({ title: "Saved", description: "Marks saved successfully" });
+            // toast({ title: "Saved", description: "Marks saved successfully" });
+            handleSaveSuccess();
             queryClient.invalidateQueries({ queryKey: [`/api/classes/${classId}/marks`] });
         },
         onError: (error: any, leadId) => {
@@ -168,7 +176,8 @@ export default function ClassMarksPage() {
             await apiRequest("POST", `/api/classes/${classId}/marks/bulk`, { marks: marksArray });
         },
         onSuccess: () => {
-            toast({ title: "Success", description: "All marks saved successfully!" });
+            // toast({ title: "Success", description: "All marks saved successfully!" });
+            handleSaveSuccess();
             queryClient.invalidateQueries({ queryKey: [`/api/classes/${classId}/marks`] });
         },
         onError: (error: any) => {
@@ -437,6 +446,16 @@ export default function ClassMarksPage() {
                     </div>
                 </div>
             </main>
+
+            {/* Floating Save Notification */}
+            {showFloatingSave && (
+                <div className="fixed top-4 left-1/2 -translate-x-1/2 z-50 animate-in fade-in slide-in-from-top-2 duration-300">
+                    <div className="bg-emerald-600 text-white px-6 py-2 rounded-full shadow-lg flex items-center gap-2 font-medium">
+                        <CheckCircle2 className="h-4 w-4" />
+                        Saved Successfully
+                    </div>
+                </div>
+            )}
         </div>
     );
 }
