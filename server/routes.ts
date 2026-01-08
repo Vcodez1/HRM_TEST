@@ -4418,6 +4418,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ message: 'Invalid attendance data format' });
       }
 
+      // Fetch class, teacher, and email config once for optimization
+      const classObj = await storage.getClass(classId);
+      const teacher = classObj ? await storage.getUser(classObj.instructorId) : null;
+      const emailConfig = await storage.getEmailConfig();
+      const resendKey = process.env.RESEND_API_KEY;
+
       const results = [];
       for (const record of attendanceList) {
         const attendanceData = insertAttendanceSchema.parse({
@@ -4426,6 +4432,74 @@ export async function registerRoutes(app: Express): Promise<Server> {
         });
         const result = await storage.markAttendance(attendanceData);
         results.push(result);
+
+        // Send email if student is absent
+        if (record.status === 'Absent') {
+          try {
+            const student = await storage.getLead(record.leadId);
+            if (student && student.email && (resendKey || emailConfig)) {
+              const formattedDate = format(new Date(record.date), 'EEEE, MMMM dd, yyyy');
+
+              const emailText = `Dear ${student.name},
+
+This is an automated notification to inform you that you were marked absent in the following class:
+
+📚 Intership Details:
+   • Session: ${classObj?.name || 'Class'}
+   • Domain: ${classObj?.subject || 'N/A'}
+   • Date: ${formattedDate}
+   • Team Lead: ${teacher?.fullName || teacher?.firstName || 'Team Lead'}
+
+📝 Action Required:
+Please provide a reason for your absence by replying to this email.
+
+⚠️ Important Note:
+If you have already informed your team lead about this absence, please ignore this email.
+
+If you believe this absence notification is incorrect, please contact your Team Lead immediately to resolve the issue.
+
+Best regards,
+${teacher?.fullName || teacher?.firstName || 'Team Lead'}
+📧 ${teacher?.email || ''}
+
+---
+This is an automated message from the Attendance Management System.
+Please do not reply to this email unless providing absence justification.`;
+
+              const emailHtml = `<p>Dear <b>${student.name}</b>,</p>
+<p>This is an automated notification to inform you that you were marked absent in the following class:</p>
+<div style="background-color: #f8fafc; padding: 20px; border-radius: 12px; border: 1px solid #e2e8f0; margin: 20px 0;">
+  <p style="margin: 0; font-size: 16px;"><b>📚 Internship Details:</b></p>
+  <ul style="list-style-type: none; padding-left: 0; margin-top: 10px;">
+    <li>• <b>Session:</b> ${classObj?.name || 'Class'}</li>
+    <li>• <b>Domain:</b> ${classObj?.subject || 'N/A'}</li>
+    <li>• <b>Date:</b> ${formattedDate}</li>
+    <li>• <b>Team Lead:</b> ${teacher?.fullName || teacher?.firstName || 'Team Lead'}</li>
+  </ul>
+</div>
+<p><b>📝 Action Required:</b><br>Please provide a reason for your absence by replying to this email.</p>
+<p style="color: #64748b; font-size: 14px;"><b>⚠️ Important Note:</b><br>If you have already informed your team lead about this absence, please ignore this email.</p>
+<p style="color: #64748b; font-size: 14px;">If you believe this absence notification is incorrect, please contact your Team Lead immediately to resolve the issue.</p>
+<hr style="border: 0; border-top: 1px solid #e2e8f0; margin: 20px 0;">
+<p style="margin: 0;">Best regards,</p>
+<p style="margin: 0;"><b>${teacher?.fullName || teacher?.firstName || 'Team Lead'}</b></p>
+<p style="margin: 0;">📧 ${teacher?.email || ''}</p>
+<br>
+<p style="color: #94a3b8; font-size: 12px; font-style: italic;">This is an automated message from the Attendance Management System.<br>Please do not reply to this email unless providing absence justification.</p>`;
+
+              await sendEmail({
+                to: student.email,
+                subject: `Absence Notification - ${classObj?.name || 'Class'}`,
+                text: emailText,
+                html: emailHtml
+              }, emailConfig);
+
+              console.log(`[POST attendance bulk] Absence email sent to ${student.email}`);
+            }
+          } catch (emailErr) {
+            console.error(`[POST attendance bulk] Failed to send absence email to lead ${record.leadId}:`, emailErr);
+          }
+        }
       }
 
       res.json({ message: 'Attendance saved successfully', count: results.length, data: results });
