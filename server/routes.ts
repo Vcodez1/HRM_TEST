@@ -15,6 +15,7 @@ import { GoogleGenerativeAI } from "@google/generative-ai";
 import fs from "fs";
 import path from "path";
 import nodemailer from "nodemailer";
+import { sendEmail } from "./email-service";
 
 const upload = multer({
   storage: multer.memoryStorage(),
@@ -227,110 +228,50 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ message: "Invalid email address format" });
       }
 
-      const isSSL = smtpConfig.smtpPort === 465;
-      const isTLS = smtpConfig.smtpPort === 587 || smtpConfig.smtpPort === 25 || smtpConfig.smtpPort === 2525;
+      console.log('[POST /api/email-config/test] Sending test email via Service...');
 
-      console.log('[POST /api/email-config/test] SMTP Config:', {
-        host: smtpConfig.smtpServer,
-        port: smtpConfig.smtpPort,
-        user: smtpConfig.smtpEmail,
-        secure: isSSL,
-        requireTLS: isTLS
-      });
-
-      // Enhanced transporter configuration with better TLS handling
-      const transporter = nodemailer.createTransport({
-        host: smtpConfig.smtpServer,
-        port: smtpConfig.smtpPort,
-        secure: isSSL, // true for port 465, false for other ports
-        auth: {
-          user: smtpConfig.smtpEmail,
-          pass: smtpConfig.appPassword,
-        },
-        // Enhanced timeout configuration
-        connectionTimeout: 30000, // 30 seconds - increased from 10s
-        greetingTimeout: 30000,
-        socketTimeout: 30000,
-        // TLS configuration for better compatibility
-        requireTLS: isTLS, // Require TLS for ports 587, 25, 2525
-        tls: {
-          // Allow self-signed certificates for testing, but validate in production
-          rejectUnauthorized: process.env.NODE_ENV === 'production',
-          // Minimum TLS version for security
-          minVersion: 'TLSv1.2',
-        },
-        // Enable debugging in development
-        debug: process.env.NODE_ENV !== 'production',
-        logger: process.env.NODE_ENV !== 'production'
-      });
-
-      console.log('[POST /api/email-config/test] Verifying transporter...');
-
-      // Verify SMTP connection first
-      try {
-        await transporter.verify();
-        console.log('[POST /api/email-config/test] ✓ SMTP connection verified successfully');
-      } catch (verifyError: any) {
-        console.error('[POST /api/email-config/test] ✗ SMTP verification failed:', verifyError.message);
-        console.error('[POST /api/email-config/test] Error code:', verifyError.code);
-        console.error('[POST /api/email-config/test] Error details:', verifyError);
-
-        let detailedMessage = "SMTP connection failed. ";
-
-        if (verifyError.code === 'EAUTH') {
-          detailedMessage += "Authentication failed. Please verify:\n- Email address is correct\n- You're using an App Password (not your regular password)\n- App Password has no spaces";
-        } else if (verifyError.code === 'ENOTFOUND') {
-          detailedMessage += `DNS lookup failed for ${smtpConfig.smtpServer}. Please check:\n- SMTP server address is correct\n- You have internet connectivity`;
-        } else if (verifyError.code === 'ECONNECTION' || verifyError.code === 'ETIMEDOUT') {
-          detailedMessage += `Connection to ${smtpConfig.smtpServer}:${smtpConfig.smtpPort} failed. Please check:\n- Port ${smtpConfig.smtpPort} is correct (587 for TLS, 465 for SSL)\n- Firewall is not blocking outbound connections\n- SMTP server is accessible`;
-        } else if (verifyError.code === 'ESOCKET') {
-          detailedMessage += "Network error. Please check your internet connection.";
-        } else {
-          detailedMessage += verifyError.message;
-        }
-
-        return res.status(400).json({
-          message: detailedMessage,
-          error: verifyError.message,
-          errorCode: verifyError.code
-        });
-      }
-
-      console.log('[POST /api/email-config/test] Sending test email...');
-
-      await transporter.sendMail({
-        from: `"${process.env.APP_NAME || 'HRM Portal'}" <${smtpConfig.smtpEmail}>`,
+      const info = await sendEmail({
         to: testEmail,
-        subject: "SMTP Test Email - HRM Portal",
-        text: "This is a test email from your HRM Portal to verify SMTP settings. If you received this, your email configuration is working correctly!",
-        html: "<h2>🎉 Success!</h2><p>This is a test email from your <b>HRM Portal</b> to verify SMTP settings.</p><p>If you received this, your email configuration is working correctly!</p>",
+        subject: `SMTP Test Email - ${process.env.APP_NAME || 'HRM Portal'}`,
+        text: `This is a test email from the HRM Portal configuration verification. If you're receiving this, your email settings are working correctly!`,
+        html: `
+          <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e2e8f0; border-radius: 12px;">
+            <h2 style="color: #10b981;">✓ Email Test Successful</h2>
+            <p>This is a test email from the <b>HRM Portal</b> configuration verification.</p>
+            <p>If you're receiving this, your email settings are working correctly!</p>
+            <hr style="border: 0; border-top: 1px solid #e2e8f0; margin: 20px 0;">
+            <p style="color: #64748b; font-size: 14px;">
+              <b>Configuration Details:</b><br>
+              Server: ${smtpConfig.smtpServer}<br>
+              Port: ${smtpConfig.smtpPort}<br>
+              Email: ${smtpConfig.smtpEmail}
+            </p>
+          </div>
+        `
+      }, {
+        smtpServer: smtpConfig.smtpServer,
+        smtpPort: smtpConfig.smtpPort,
+        smtpEmail: smtpConfig.smtpEmail,
+        appPassword: smtpConfig.appPassword
       });
 
-      console.log('[POST /api/email-config/test] ✓ Test email sent successfully to:', testEmail);
-      res.json({ message: "Test email sent successfully! Check your inbox." });
+      console.log('[POST /api/email-config/test] Email sent info:', info);
+      res.json({ message: "Test email sent successfully!", info });
     } catch (error: any) {
-      console.error('[POST /api/email-config/test] ✗ Error:', error);
-      console.error('[POST /api/email-config/test] Error code:', error.code);
-      console.error('[POST /api/email-config/test] Error stack:', error.stack);
+      console.error('[POST /api/email-config/test] Error:', error);
 
-      let userMessage = "Failed to send test email";
+      let errorMsg = error.message || "Failed to send test email";
+      let errorCode = error.code || "UNKNOWN";
 
-      if (error.code === 'EAUTH') {
-        userMessage = "Authentication failed. Please verify:\n- Email address is correct\n- You're using an App Password (for Gmail, generate at https://myaccount.google.com/apppasswords)\n- App Password has no spaces or dashes";
-      } else if (error.code === 'ENOTFOUND') {
-        userMessage = "Could not find SMTP server. Please check the server address is correct.";
-      } else if (error.code === 'ECONNECTION' || error.code === 'ETIMEDOUT') {
-        userMessage = "Connection timed out. Please check:\n- SMTP server and port are correct\n- Firewall is not blocking the connection\n- You have internet connectivity";
-      } else if (error.code === 'ESOCKET') {
-        userMessage = "Network error. Please check your internet connection.";
-      } else if (error.message) {
-        userMessage = `Error: ${error.message}`;
+      // Provide more helpful error messages for common issues
+      if (errorCode === 'ETIMEDOUT') {
+        errorMsg = "Connection timed out. Render's free tier blocks SMTP ports (587, 465). Please set 'RESEND_API_KEY' in environment variables to use HTTP email API.";
       }
 
       res.status(500).json({
-        message: userMessage,
-        error: error.message,
-        errorCode: error.code
+        message: errorMsg,
+        error: errorMsg,
+        errorCode: errorCode
       });
     }
   });
@@ -377,26 +318,22 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // At this point, smtpConfig is guaranteed to be defined (early return above if not)
       const validConfig = smtpConfig!;
 
-      const transporter = nodemailer.createTransport({
-        host: validConfig.smtpServer,
-        port: validConfig.smtpPort,
-        secure: validConfig.smtpPort === 465,
-        auth: {
-          user: validConfig.smtpEmail,
-          pass: validConfig.appPassword,
-        },
-      });
-
       const results = [];
+      const config = {
+        smtpServer: validConfig.smtpServer,
+        smtpPort: validConfig.smtpPort,
+        smtpEmail: validConfig.smtpEmail,
+        appPassword: validConfig.appPassword
+      };
+
       for (const student of absentDetails) {
         try {
-          await transporter.sendMail({
-            from: `"${process.env.APP_NAME || 'HRM Portal'}" <${validConfig.smtpEmail}>`,
+          await sendEmail({
             to: student.studentEmail,
             subject: `Absence Notification - ${student.className}`,
             text: `Dear ${student.studentName},\n\nYou were marked absent for the ${student.className} class on ${student.date}. Please ensure you attend the next session.\n\nBest regards,\nVCodez Team`,
             html: `<p>Dear <b>${student.studentName}</b>,</p><p>You were marked absent for the <b>${student.className}</b> class on <b>${student.date}</b>. Please ensure you attend the next session.</p><p>Best regards,<br>VCodez Team</p>`,
-          });
+          }, config);
           results.push({ student: student.studentName, status: "Sent" });
         } catch (err: any) {
           console.error(`Failed to notify ${student.studentEmail}:`, err);
