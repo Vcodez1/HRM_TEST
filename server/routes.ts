@@ -4422,9 +4422,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Fetch class, teacher, and email config once for optimization
       const classObj = await storage.getClass(classId);
       const teacher = classObj ? await storage.getUser(classObj.instructorId) : null;
+      const teacherName = teacher?.fullName || teacher?.firstName || 'Team Lead';
       const emailConfig = await storage.getEmailConfig();
       const resendKey = process.env.RESEND_API_KEY;
 
+      console.log(`[POST attendance bulk] Class instructorId: ${classObj?.instructorId}, Current User ID: ${req.user?.id}`);
       console.log(`[POST attendance bulk] Class: ${classObj?.name}, Teacher: ${teacher?.fullName || teacher?.firstName}, Resend: ${!!resendKey}, SMTP: ${!!emailConfig}`);
 
       const results = [];
@@ -4453,7 +4455,7 @@ This is an automated notification to inform you that you were marked absent in t
    • Session: ${classObj?.name || 'Class'}
    • Domain: ${classObj?.subject || 'N/A'}
    • Date: ${formattedDate}
-   • Team Lead: ${teacher?.fullName || teacher?.firstName || 'Team Lead'}
+   • Team Lead: ${teacherName}
 
 📝 Action Required:
 Please provide a reason for your absence by replying to this email.
@@ -4464,7 +4466,7 @@ If you have already informed your team lead about this absence, please ignore th
 If you believe this absence notification is incorrect, please contact your Team Lead immediately to resolve the issue.
 
 Best regards,
-${teacher?.fullName || teacher?.firstName || 'Team Lead'}
+${teacherName}
 📧 ${teacher?.email || ''}
 
 ---
@@ -4479,7 +4481,7 @@ Please do not reply to this email unless providing absence justification.`;
     <li>• <b>Session:</b> ${classObj?.name || 'Class'}</li>
     <li>• <b>Domain:</b> ${classObj?.subject || 'N/A'}</li>
     <li>• <b>Date:</b> ${formattedDate}</li>
-    <li>• <b>Team Lead:</b> ${teacher?.fullName || teacher?.firstName || 'Team Lead'}</li>
+    <li>• <b>Team Lead:</b> ${teacherName}</li>
   </ul>
 </div>
 <p><b>📝 Action Required:</b><br>Please provide a reason for your absence by replying to this email.</p>
@@ -4487,13 +4489,14 @@ Please do not reply to this email unless providing absence justification.`;
 <p style="color: #64748b; font-size: 14px;">If you believe this absence notification is incorrect, please contact your Team Lead immediately to resolve the issue.</p>
 <hr style="border: 0; border-top: 1px solid #e2e8f0; margin: 20px 0;">
 <p style="margin: 0;">Best regards,</p>
-<p style="margin: 0;"><b>${teacher?.fullName || teacher?.firstName || 'Team Lead'}</b></p>
+<p style="margin: 0;"><b>${teacherName}</b></p>
 <p style="margin: 0;">📧 ${teacher?.email || ''}</p>
 <br>
 <p style="color: #94a3b8; font-size: 12px; font-style: italic;">This is an automated message from the Attendance Management System.<br>Please do not reply to this email unless providing absence justification.</p>`;
 
               await sendEmail({
                 to: student.email,
+                from: teacher?.email ? `"${teacher.fullName || teacher.firstName}" <${teacher.email}>` : undefined,
                 subject: `Absence Notification - ${classObj?.name || 'Class'}`,
                 text: emailText,
                 html: emailHtml
