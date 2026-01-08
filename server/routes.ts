@@ -4428,8 +4428,30 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const teacherName = currentUser?.fullName || currentUser?.firstName || instructor?.fullName || instructor?.firstName || 'Team Lead';
       const teacherEmail = currentUser?.email || instructor?.email || '';
 
-      const emailConfig = await storage.getEmailConfig(req.user.id);
+      // Try to get email config - wrapped in try-catch to handle missing userId column
+      let emailConfig: any = null;
+      try {
+        emailConfig = await storage.getEmailConfig(req.user.id);
+      } catch (emailConfigErr) {
+        console.log(`[POST attendance bulk] Email config fetch failed (likely missing userId column):`, emailConfigErr);
+      }
       const resendKey = process.env.RESEND_API_KEY;
+
+      // Fallback to environment variables if no email config
+      if (!emailConfig && !resendKey) {
+        const envEmail = process.env.SMTP_EMAIL;
+        const envPassword = process.env.SMTP_PASSWORD;
+        if (envEmail && envPassword) {
+          emailConfig = {
+            smtpEmail: envEmail,
+            appPassword: envPassword,
+            smtpServer: process.env.SMTP_SERVER || 'smtp.gmail.com',
+            smtpPort: parseInt(process.env.SMTP_PORT || '587'),
+            isEnabled: true
+          };
+          console.log(`[POST attendance bulk] Using fallback SMTP from environment variables`);
+        }
+      }
 
       console.log(`[POST attendance bulk] ═══════════════════════════════════`);
       console.log(`[POST attendance bulk] Current User (req.user):`, {

@@ -240,8 +240,18 @@ export class DatabaseStorage implements IStorage {
         );
       `);
       console.log("[Storage] Marks table verified/created.");
+
+      // Add userId column to email_config if it doesn't exist (Self-healing migration)
+      try {
+        await db.execute(sql`
+          ALTER TABLE email_config ADD COLUMN IF NOT EXISTS user_id varchar UNIQUE REFERENCES users(id);
+        `);
+        console.log("[Storage] email_config.user_id column verified/created.");
+      } catch (emailConfigErr) {
+        console.log("[Storage] email_config migration skipped (column may already exist):", emailConfigErr);
+      }
     } catch (error) {
-      console.error("[Storage] Failed to initialize marks table:", error);
+      console.error("[Storage] Failed to initialize schema:", error);
     }
   }
 
