@@ -133,8 +133,22 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const { testEmail, config } = req.body;
       console.log('[POST /api/email-config/test] Starting test email to:', testEmail);
 
+      // Debug: Log environment variable status
+      console.log('[POST /api/email-config/test] ENV CHECK:', {
+        SMTP_EMAIL: process.env.SMTP_EMAIL ? `✓ Set (${process.env.SMTP_EMAIL.substring(0, 5)}...)` : '✗ NOT SET',
+        SMTP_PASSWORD: process.env.SMTP_PASSWORD ? '✓ Set (hidden)' : '✗ NOT SET',
+        SMTP_SERVER: process.env.SMTP_SERVER || '(default: smtp.gmail.com)',
+        SMTP_PORT: process.env.SMTP_PORT || '(default: 587)'
+      });
+
       // Try to get config from request, database, or environment variables (fallback for Render)
       let smtpConfig = config || await storage.getEmailConfig();
+
+      console.log('[POST /api/email-config/test] Database config check:', {
+        hasConfig: !!smtpConfig,
+        hasEmail: !!(smtpConfig?.smtpEmail),
+        hasPassword: !!(smtpConfig?.appPassword)
+      });
 
       // Fallback to environment variables if database config is missing
       if (!smtpConfig || !smtpConfig.smtpEmail || !smtpConfig.appPassword) {
@@ -157,7 +171,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
             updatedAt: null
           } as any; // Type assertion for env-based config
         } else {
-          console.log('[POST /api/email-config/test] No valid SMTP config found in database or environment');
+          console.log('[POST /api/email-config/test] ✗ No valid SMTP config found in database or environment');
+          console.log('[POST /api/email-config/test] Make sure to set SMTP_EMAIL and SMTP_PASSWORD in Render environment variables');
           return res.status(400).json({
             message: "Email configuration is incomplete. Please configure SMTP settings in /email-settings or set environment variables (SMTP_EMAIL, SMTP_PASSWORD, SMTP_SERVER, SMTP_PORT)."
           });
