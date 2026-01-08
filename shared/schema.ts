@@ -207,6 +207,7 @@ export const marks = pgTable("marks", {
 // Email Configuration Table
 export const emailConfig = pgTable("email_config", {
   id: integer("id").primaryKey().generatedByDefaultAsIdentity(),
+  userId: varchar("user_id").references(() => users.id).unique().notNull(),
   smtpEmail: text("smtp_email").notNull(),
   appPassword: text("app_password").notNull(),
   smtpServer: text("smtp_server").notNull(),

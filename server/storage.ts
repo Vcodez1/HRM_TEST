@@ -203,8 +203,8 @@ export interface IStorage {
   }>;
 
   // Email Configuration operations
-  getEmailConfig(): Promise<EmailConfig | undefined>;
-  updateEmailConfig(config: InsertEmailConfig): Promise<EmailConfig>;
+  getEmailConfig(userId: string): Promise<EmailConfig | undefined>;
+  updateEmailConfig(userId: string, config: any): Promise<EmailConfig>;
 
   // Notification operations
   getAbsentDetailsForMentor(mentorEmail: string): Promise<Array<{
@@ -1774,22 +1774,22 @@ c.*,
     }
   }
 
-  async getEmailConfig(): Promise<EmailConfig | undefined> {
-    const [config] = await db.select().from(emailConfig).limit(1);
+  async getEmailConfig(userId: string): Promise<EmailConfig | undefined> {
+    const [config] = await db.select().from(emailConfig).where(eq(emailConfig.userId, userId)).limit(1);
     return config;
   }
 
-  async updateEmailConfig(configData: InsertEmailConfig): Promise<EmailConfig> {
-    const existing = await this.getEmailConfig();
+  async updateEmailConfig(userId: string, configData: any): Promise<EmailConfig> {
+    const existing = await this.getEmailConfig(userId);
     if (existing) {
       const [updated] = await db
         .update(emailConfig)
-        .set({ ...configData, updatedAt: new Date() })
+        .set({ ...configData, userId, updatedAt: new Date() })
         .where(eq(emailConfig.id, existing.id))
         .returning();
       return updated;
     } else {
-      const [inserted] = await db.insert(emailConfig).values(configData).returning();
+      const [inserted] = await db.insert(emailConfig).values({ ...configData, userId }).returning();
       return inserted;
     }
   }

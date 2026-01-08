@@ -105,8 +105,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Email Configuration routes
   app.get('/api/email-config', isAuthenticated, async (req: any, res) => {
     try {
-      console.log('[GET /api/email-config] Fetching email config from database...');
-      const config = await storage.getEmailConfig();
+      console.log('[GET /api/email-config] Fetching email config for user:', req.user.id);
+      const config = await storage.getEmailConfig(req.user.id);
 
       if (config) {
         console.log('[GET /api/email-config] ✓ Found config in database:', {
@@ -152,7 +152,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ message: "Missing required fields: smtpEmail, appPassword, smtpServer" });
       }
 
-      const config = await storage.updateEmailConfig(req.body);
+      const config = await storage.updateEmailConfig(req.user.id, req.body);
       console.log('[POST /api/email-config] ✓ Config saved successfully to database!');
       console.log('[POST /api/email-config] Saved config ID:', config.id);
       console.log('[POST /api/email-config] ═══════════════════════════════════');
@@ -182,7 +182,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       });
 
       // Try to get config from request, database, or environment variables (fallback for Render)
-      let smtpConfig = config || await storage.getEmailConfig();
+      let smtpConfig = config || await storage.getEmailConfig(req.user.id);
 
       console.log('[POST /api/email-config/test] Database config check:', {
         hasConfig: !!smtpConfig,
@@ -290,7 +290,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       // Try database config first, fallback to environment variables
-      let smtpConfig = await storage.getEmailConfig();
+      let smtpConfig = await storage.getEmailConfig(req.user.id);
 
       if (!smtpConfig || !smtpConfig.smtpEmail || !smtpConfig.appPassword || !smtpConfig.isEnabled) {
         console.log('[POST /api/tech-support/notify-students] Database config incomplete, checking environment variables...');
@@ -4428,7 +4428,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const teacherName = currentUser?.fullName || currentUser?.firstName || instructor?.fullName || instructor?.firstName || 'Team Lead';
       const teacherEmail = currentUser?.email || instructor?.email || '';
 
-      const emailConfig = await storage.getEmailConfig();
+      const emailConfig = await storage.getEmailConfig(req.user.id);
       const resendKey = process.env.RESEND_API_KEY;
 
       console.log(`[POST attendance bulk] Class: ${classObj?.name}, Current Identity: ${teacherName} (${teacherEmail}), Resend: ${!!resendKey}, SMTP: ${!!emailConfig}`);
