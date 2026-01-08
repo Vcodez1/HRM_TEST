@@ -4500,6 +4500,8 @@ Please do not reply to this email unless providing absence justification.`;
               }, emailConfig);
 
               console.log(`[POST attendance bulk] Absence email sent to ${student.email}`);
+            } else {
+              console.log(`[POST attendance bulk] Email skipped for lead ${record.leadId}. Reason: student=${!!student}, email=${student?.email}, config=${!!(resendKey || emailConfig)}`);
             }
           } catch (emailErr) {
             console.error(`[POST attendance bulk] Failed to send absence email to lead ${record.leadId}:`, emailErr);
