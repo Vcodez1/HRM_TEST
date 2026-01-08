@@ -4478,6 +4478,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         results.push(result);
 
         // Send email if student is absent
+        console.log(`[POST attendance bulk] Record: leadId=${record.leadId}, status="${record.status}", isAbsent=${record.status === 'Absent'}`);
         if (record.status === 'Absent') {
           console.log(`[POST attendance bulk] Student ${record.leadId} marked Absent. Checking email trigger...`);
           try {
@@ -4539,7 +4540,12 @@ Please do not reply to this email unless providing absence justification.`;
                 subject: `Absence Notification - ${classObj?.name || 'Class'}`,
                 text: emailText,
                 html: emailHtml
-              }, emailConfig);
+              }, emailConfig ? {
+                smtpServer: emailConfig.smtpServer,
+                smtpPort: emailConfig.smtpPort,
+                smtpEmail: emailConfig.smtpEmail,
+                appPassword: emailConfig.appPassword
+              } : undefined);
 
               console.log(`[POST attendance bulk] Absence email sent to ${student.email}`);
             } else {
