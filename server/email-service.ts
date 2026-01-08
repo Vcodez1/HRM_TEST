@@ -22,7 +22,10 @@ export async function sendEmail(options: EmailOptions, config?: SMTPConfig) {
     const resendKey = process.env.RESEND_API_KEY;
     const useResend = !!resendKey;
 
+    console.log(`[EmailService] Check Resend API Key: ${useResend ? 'Assuming Present' : 'Missing'}`);
+
     if (useResend) {
+
         console.log(`[EmailService] Using Resend API to send email to ${options.to}`);
         return sendWithResend(options, resendKey!);
     }
