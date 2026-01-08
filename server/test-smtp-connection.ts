@@ -99,9 +99,8 @@ async function testSMTPConnection(config: SMTPConfig): Promise<void> {
         socketTimeout: 30000,
         requireTLS: isTLS,
         tls: {
-            rejectUnauthorized: true,
-            minVersion: 'TLSv1.2',
-            ciphers: 'SSLv3'
+            rejectUnauthorized: false, // Allow self-signed certs for testing
+            minVersion: 'TLSv1.2'
         },
         debug: true,
         logger: true

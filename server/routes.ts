@@ -177,14 +177,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
         // TLS configuration for better compatibility
         requireTLS: isTLS, // Require TLS for ports 587, 25, 2525
         tls: {
-          // Don't fail on invalid certs (for testing, but be careful in production)
-          rejectUnauthorized: true,
-          // Minimum TLS version
+          // Allow self-signed certificates for testing, but validate in production
+          rejectUnauthorized: process.env.NODE_ENV === 'production',
+          // Minimum TLS version for security
           minVersion: 'TLSv1.2',
-          // Additional cipher configuration for compatibility
-          ciphers: 'SSLv3'
         },
-        // Enable debugging
+        // Enable debugging in development
         debug: process.env.NODE_ENV !== 'production',
         logger: process.env.NODE_ENV !== 'production'
       });
