@@ -4421,13 +4421,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       // Fetch class, teacher, and email config once for optimization
       const classObj = await storage.getClass(classId);
-      const teacher = classObj ? await storage.getUser(classObj.instructorId) : null;
-      const teacherName = teacher?.fullName || teacher?.firstName || 'Team Lead';
+      // Fetch the class instructor as a fallback
+      const instructor = classObj ? await storage.getUser(classObj.instructorId) : null;
+      // Use the CURRENT logged-in user (req.user) as the Team Lead identity for the email
+      const currentUser = req.user;
+      const teacherName = currentUser?.fullName || currentUser?.firstName || instructor?.fullName || instructor?.firstName || 'Team Lead';
+      const teacherEmail = currentUser?.email || instructor?.email || '';
+
       const emailConfig = await storage.getEmailConfig();
       const resendKey = process.env.RESEND_API_KEY;
 
-      console.log(`[POST attendance bulk] Class instructorId: ${classObj?.instructorId}, Current User ID: ${req.user?.id}`);
-      console.log(`[POST attendance bulk] Class: ${classObj?.name}, Teacher: ${teacher?.fullName || teacher?.firstName}, Resend: ${!!resendKey}, SMTP: ${!!emailConfig}`);
+      console.log(`[POST attendance bulk] Class: ${classObj?.name}, Current Identity: ${teacherName} (${teacherEmail}), Resend: ${!!resendKey}, SMTP: ${!!emailConfig}`);
 
       const results = [];
       for (const record of attendanceList) {
@@ -4467,7 +4471,7 @@ If you believe this absence notification is incorrect, please contact your Team 
 
 Best regards,
 ${teacherName}
-📧 ${teacher?.email || ''}
+📧 ${teacherEmail}
 
 ---
 This is an automated message from the Attendance Management System.
@@ -4490,13 +4494,13 @@ Please do not reply to this email unless providing absence justification.`;
 <hr style="border: 0; border-top: 1px solid #e2e8f0; margin: 20px 0;">
 <p style="margin: 0;">Best regards,</p>
 <p style="margin: 0;"><b>${teacherName}</b></p>
-<p style="margin: 0;">📧 ${teacher?.email || ''}</p>
+<p style="margin: 0;">📧 ${teacherEmail}</p>
 <br>
 <p style="color: #94a3b8; font-size: 12px; font-style: italic;">This is an automated message from the Attendance Management System.<br>Please do not reply to this email unless providing absence justification.</p>`;
 
               await sendEmail({
                 to: student.email,
-                from: teacher?.email ? `"${teacher.fullName || teacher.firstName}" <${teacher.email}>` : undefined,
+                from: teacherEmail ? `"${teacherName}" <${teacherEmail}>` : undefined,
                 subject: `Absence Notification - ${classObj?.name || 'Class'}`,
                 text: emailText,
                 html: emailHtml
