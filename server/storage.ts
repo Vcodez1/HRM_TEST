@@ -1804,8 +1804,20 @@ c.*,
   }
 
   async getEmailConfig(userId: string): Promise<EmailConfig | undefined> {
-    const [config] = await db.select().from(emailConfig).where(eq(emailConfig.userId, userId)).limit(1);
-    return config;
+    try {
+      const [config] = await db.select().from(emailConfig).where(eq(emailConfig.userId, userId)).limit(1);
+      return config;
+    } catch (error: any) {
+      console.log('[Storage] getEmailConfig with userId failed, trying fallback:', error.message);
+      // Fallback: get first config without userId filter (for databases without user_id column)
+      try {
+        const [config] = await db.select().from(emailConfig).limit(1);
+        return config;
+      } catch (fallbackErr) {
+        console.error('[Storage] getEmailConfig fallback also failed:', fallbackErr);
+        return undefined;
+      }
+    }
   }
 
   async updateEmailConfig(userId: string, configData: any): Promise<EmailConfig> {
