@@ -80,14 +80,27 @@ export default function EmailSettings() {
     const updateConfigMutation = useMutation({
         mutationFn: async (data: EmailConfigForm) => {
             const response = await apiRequest("POST", "/api/email-config", data);
+            if (!response.ok) {
+                const errorData = await response.json();
+                throw new Error(errorData.message || errorData.error || "Failed to save email settings");
+            }
             return response.json();
         },
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ["/api/email-config"] });
-            toast({ title: "Success", description: "Email settings updated successfully" });
+            toast({
+                title: "Success",
+                description: "Email settings saved successfully! Your SMTP configuration is now active."
+            });
         },
         onError: (error: any) => {
-            toast({ title: "Error", description: error.message, variant: "destructive" });
+            console.error("[EmailSettings] Save error:", error);
+            const errorMessage = error.message || "Failed to save email settings";
+            toast({
+                title: "Error Saving Settings",
+                description: errorMessage,
+                variant: "destructive"
+            });
         },
     });
 

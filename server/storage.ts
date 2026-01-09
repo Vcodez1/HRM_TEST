@@ -1822,37 +1822,60 @@ c.*,
 
   async updateEmailConfig(userId: string, configData: any): Promise<EmailConfig> {
     try {
+      console.log('[Storage] updateEmailConfig called with userId:', userId);
+      console.log('[Storage] Config data:', {
+        hasEmail: !!configData.smtpEmail,
+        hasPassword: !!configData.appPassword,
+        smtpServer: configData.smtpServer,
+        smtpPort: configData.smtpPort
+      });
+
       const existing = await this.getEmailConfig(userId);
+      console.log('[Storage] Existing config check:', { exists: !!existing, id: existing?.id });
+
       if (existing) {
+        console.log('[Storage] Updating existing email config with ID:', existing.id);
         const [updated] = await db
           .update(emailConfig)
           .set({ ...configData, userId, updatedAt: new Date() })
           .where(eq(emailConfig.id, existing.id))
           .returning();
+        console.log('[Storage] ✓ Email config updated successfully, ID:', updated.id);
         return updated;
       } else {
+        console.log('[Storage] Creating new email config for userId:', userId);
         const [inserted] = await db.insert(emailConfig).values({ ...configData, userId }).returning();
+        console.log('[Storage] ✓ Email config created successfully, ID:', inserted.id);
         return inserted;
       }
     } catch (error: any) {
       console.error('[Storage] updateEmailConfig error with userId:', error.message);
+      console.error('[Storage] Error code:', error.code);
+      console.error('[Storage] Error detail:', error.detail);
+
       // Fallback: try without userId if the column doesn't exist yet
       try {
         console.log('[Storage] Trying fallback: save email config without userId');
         const [existing] = await db.select().from(emailConfig).limit(1);
         if (existing) {
+          console.log('[Storage] Fallback: Updating existing config without userId filter');
           const [updated] = await db
             .update(emailConfig)
             .set({ ...configData, updatedAt: new Date() })
             .where(eq(emailConfig.id, existing.id))
             .returning();
+          console.log('[Storage] ✓ Fallback update successful, ID:', updated.id);
           return updated;
         } else {
+          console.log('[Storage] Fallback: Creating new config without userId');
           const [inserted] = await db.insert(emailConfig).values(configData).returning();
+          console.log('[Storage] ✓ Fallback insert successful, ID:', inserted.id);
           return inserted;
         }
       } catch (fallbackErr: any) {
         console.error('[Storage] Fallback also failed:', fallbackErr.message);
+        console.error('[Storage] Fallback error code:', fallbackErr.code);
+        console.error('[Storage] Fallback error detail:', fallbackErr.detail);
         throw error;
       }
     }

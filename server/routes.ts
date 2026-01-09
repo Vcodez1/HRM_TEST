@@ -133,6 +133,25 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       console.log('[POST /api/email-config] ═══════════════════════════════════');
       console.log('[POST /api/email-config] Saving email config to database...');
+
+      // Enhanced debugging: Log user authentication details
+      console.log('[POST /api/email-config] User details:', {
+        userId: req.user?.id,
+        userEmail: req.user?.email,
+        userRole: req.user?.role,
+        hasUser: !!req.user
+      });
+
+      // Check if user ID exists
+      if (!req.user || !req.user.id) {
+        console.error('[POST /api/email-config] ✗ CRITICAL: req.user.id is undefined!');
+        console.error('[POST /api/email-config] Full req.user object:', JSON.stringify(req.user, null, 2));
+        return res.status(401).json({
+          message: "Authentication error: User ID not found in session. Please logout and login again.",
+          debug: { hasUser: !!req.user, userId: req.user?.id }
+        });
+      }
+
       console.log('[POST /api/email-config] Request body:', {
         smtpEmail: req.body.smtpEmail,
         hasPassword: !!req.body.appPassword,
@@ -143,15 +162,24 @@ export async function registerRoutes(app: Express): Promise<Server> {
       });
 
       if (req.user.role !== 'admin' && req.user.role !== 'manager' && req.user.role !== 'tech-support') {
+        console.log('[POST /api/email-config] ✗ Access denied for role:', req.user.role);
         return res.status(403).json({ message: "Only admins, managers, and tech-support can update email configuration" });
       }
 
       // Validate required fields
       if (!req.body.smtpEmail || !req.body.appPassword || !req.body.smtpServer) {
         console.log('[POST /api/email-config] ✗ Missing required fields');
-        return res.status(400).json({ message: "Missing required fields: smtpEmail, appPassword, smtpServer" });
+        return res.status(400).json({
+          message: "Missing required fields: smtpEmail, appPassword, smtpServer",
+          received: {
+            smtpEmail: !!req.body.smtpEmail,
+            appPassword: !!req.body.appPassword,
+            smtpServer: !!req.body.smtpServer
+          }
+        });
       }
 
+      console.log('[POST /api/email-config] ✓ Validation passed, calling storage.updateEmailConfig...');
       const config = await storage.updateEmailConfig(req.user.id, req.body);
       console.log('[POST /api/email-config] ✓ Config saved successfully to database!');
       console.log('[POST /api/email-config] Saved config ID:', config.id);
@@ -159,7 +187,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json(config);
     } catch (error: any) {
       console.error('[POST /api/email-config] ✗ Error saving config:', error);
-      res.status(500).json({ message: "Failed to update email configuration", error: error.message });
+      console.error('[POST /api/email-config] Error details:', {
+        message: error.message,
+        code: error.code,
+        detail: error.detail,
+        stack: error.stack?.split('\n').slice(0, 3).join('\n')
+      });
+      res.status(500).json({
+        message: "Failed to update email configuration",
+        error: error.message,
+        detail: error.detail || 'No additional details',
+        code: error.code || 'UNKNOWN'
+      });
     }
   });
 
