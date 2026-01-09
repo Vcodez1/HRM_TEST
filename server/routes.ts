@@ -380,13 +380,24 @@ export async function registerRoutes(app: Express): Promise<Server> {
         appPassword: validConfig.appPassword
       };
 
+      // Get the current user's full name and email for the signature
+      const userName = user.fullName || user.firstName || user.email || 'Team Support';
+      const userEmail = user.email || '';
+
       for (const student of absentDetails) {
         try {
           await sendEmail({
             to: student.studentEmail,
+            from: userEmail ? `"${userName}" <${userEmail}>` : undefined,
             subject: `Absence Notification - ${student.className}`,
-            text: `Dear ${student.studentName},\n\nYou were marked absent for the ${student.className} class on ${student.date}. Please ensure you attend the next session.\n\nBest regards,\nVCodez Team`,
-            html: `<p>Dear <b>${student.studentName}</b>,</p><p>You were marked absent for the <b>${student.className}</b> class on <b>${student.date}</b>. Please ensure you attend the next session.</p><p>Best regards,<br>VCodez Team</p>`,
+            text: `Dear ${student.studentName},\n\nYou were marked absent for the ${student.className} class on ${student.date}. Please ensure you attend the next session.\n\nIf you have any questions, please contact your Team Lead.\n\nBest regards,\n${userName}\n📧 ${userEmail}`,
+            html: `<p>Dear <b>${student.studentName}</b>,</p>
+<p>You were marked absent for the <b>${student.className}</b> class on <b>${student.date}</b>. Please ensure you attend the next session.</p>
+<p>If you have any questions, please contact your Team Lead.</p>
+<hr style="border: 0; border-top: 1px solid #e2e8f0; margin: 20px 0;">
+<p style="margin: 0;">Best regards,</p>
+<p style="margin: 0;"><b>${userName}</b></p>
+<p style="margin: 0;">📧 ${userEmail}</p>`,
           }, config);
           results.push({ student: student.studentName, status: "Sent" });
         } catch (err: any) {
@@ -4476,15 +4487,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const classObj = await storage.getClass(classId);
       // Fetch the class instructor as a fallback
       const instructor = classObj ? await storage.getUser(classObj.instructorId) : null;
-      // Use the CURRENT logged-in user (req.user) as the Team Lead identity for the email
-      const currentUser = req.user;
+      // Fetch the CURRENT logged-in user from database to get their full details
+      const userId = req.user?.claims?.sub || req.user?.id;
+      const currentUser = await storage.getUser(userId);
       const teacherName = currentUser?.fullName || currentUser?.firstName || instructor?.fullName || instructor?.firstName || 'Team Lead';
       const teacherEmail = currentUser?.email || instructor?.email || '';
 
       // Try to get email config - wrapped in try-catch to handle missing userId column
       let emailConfig: any = null;
       try {
-        emailConfig = await storage.getEmailConfig(req.user.id);
+        emailConfig = await storage.getEmailConfig(userId);
       } catch (emailConfigErr) {
         console.log(`[POST attendance bulk] Email config fetch failed (likely missing userId column):`, emailConfigErr);
       }
