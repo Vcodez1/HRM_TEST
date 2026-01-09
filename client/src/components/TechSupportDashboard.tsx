@@ -2,7 +2,7 @@ import { useQuery, useMutation } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { Loader2 } from "lucide-react";
-import * as XLSX from "xlsx";
+import * as ExcelJS from "exceljs";
 import { useState } from "react";
 import {
     Users,
@@ -144,7 +144,43 @@ export default function TechSupportDashboard({ userDisplayName }: { userDisplayN
                 attendanceDates = attendanceDates.filter((d: string) => d <= toDate);
             }
 
-            // Calculate attendance stats per student
+            // Create a new workbook and worksheet
+            const workbook = new ExcelJS.Workbook();
+            const worksheet = workbook.addWorksheet(`${classData?.name || 'Class'} Attendance`);
+
+            // Headers definition
+            const headers = [
+                "S.No", "Student ID", "Student Name", "Email",
+                ...(attendanceDates.length > 0 ? attendanceDates : ["Date"]),
+                "Total Present", "Total Absent", "Total Late", "Attendance %",
+                "Assessment 1", "Assessment 2", "Task", "Project", "Final Validation", "Total Marks"
+            ];
+
+            // 1. Setup Header Row
+            const headerRow = worksheet.getRow(1);
+            headerRow.values = headers;
+            headerRow.font = { bold: true, color: { argb: 'FFFFFFFF' } };
+            headerRow.fill = {
+                type: 'pattern',
+                pattern: 'solid',
+                fgColor: { argb: 'FF0070C0' } // Blue background
+            };
+            headerRow.alignment = { vertical: 'middle', horizontal: 'center' };
+
+            // 2. Meta Rows
+            worksheet.addRow([`Class:`, classData?.name || "N/A", classData?.subject || ""]);
+            worksheet.addRow([`Teacher:`, userDisplayName]);
+            worksheet.addRow([`Export Date:`, format(new Date(), 'MM/dd/yyyy hh:mm a')]);
+            worksheet.addRow([]); // Empty row
+
+            // Style meta labels
+            [2, 3, 4].forEach(rowNum => {
+                const row = worksheet.getRow(rowNum);
+                const cell = row.getCell(1);
+                cell.font = { bold: true };
+            });
+
+            // 3. Student Data Rows
             const getAttendanceStats = (leadId: number) => {
                 const studentAtt = attendance.filter((a: any) => a.leadId === leadId);
                 const present = studentAtt.filter((a: any) => a.status === 'Present').length;
@@ -155,25 +191,6 @@ export default function TechSupportDashboard({ userDisplayName }: { userDisplayN
                 return { present, absent, late, percentage };
             };
 
-            // Build the worksheet data in the exact format
-            const wsData: any[][] = [];
-
-            // Header row with all columns
-            const headers = [
-                "S.No", "Student ID", "Student Name", "Email",
-                ...(attendanceDates.length > 0 ? attendanceDates : ["Date"]),
-                "Total Present", "Total Absent", "Total Late", "Attendance %",
-                "Assessment 1", "Assessment 2", "Task", "Project", "Final Validation", "Total Marks"
-            ];
-            wsData.push(headers);
-
-            // Meta rows
-            wsData.push([`Class:`, classData?.name || "N/A", classData?.subject || ""]);
-            wsData.push([`Teacher:`, userDisplayName]);
-            wsData.push([`Export Date:`, format(new Date(), 'MM/dd/yyyy hh:mm a')]);
-            wsData.push([]); // Empty row
-
-            // Student data rows
             students.forEach((student: any, index: number) => {
                 const mark = marks.find((m: any) => m.leadId === student.id) || {};
                 const stats = getAttendanceStats(student.id);
@@ -184,7 +201,7 @@ export default function TechSupportDashboard({ userDisplayName }: { userDisplayN
                     return att?.status || "";
                 });
 
-                const row = [
+                const rowValues = [
                     index + 1,
                     student.studentId || "PENDING",
                     student.name,
@@ -201,46 +218,82 @@ export default function TechSupportDashboard({ userDisplayName }: { userDisplayN
                     mark.finalValidation || 0,
                     mark.total || 0
                 ];
-                wsData.push(row);
+
+                const row = worksheet.addRow(rowValues);
+
+                // Style the row cells
+                row.eachCell((cell, colNumber) => {
+                    const value = cell.value?.toString();
+
+                    // Attendance status styling
+                    if (value === 'Present') {
+                        cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFC6EFCE' } }; // Green
+                        cell.font = { color: { argb: 'FF006100' } };
+                    } else if (value === 'Absent') {
+                        cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFFC7CE' } }; // Red
+                        cell.font = { color: { argb: 'FF9C0006' } };
+                    } else if (value === 'Late') {
+                        cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFFEB9C' } }; // Orange
+                        cell.font = { color: { argb: 'FF9C5700' } };
+                    }
+
+                    // Total Marks and Attendance % styling
+                    const headerName = headers[colNumber - 1];
+                    if (headerName === 'Attendance %' || headerName === 'Total Marks') {
+                        cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFC6EFCE' } }; // Green highlight
+                    }
+                });
             });
 
-            // Empty rows before legend
-            wsData.push([]);
-            wsData.push([]);
+            // 4. Legend Section
+            worksheet.addRow([]);
+            worksheet.addRow([]);
+            const legendRow = worksheet.addRow(["Legend:"]);
+            legendRow.getCell(1).font = { bold: true };
 
-            // Legend row
-            wsData.push(["Legend:"]);
-            wsData.push(["Present", "Absent", "Late"]);
+            const legendColorsRow = worksheet.addRow(["Present", "Absent", "Late"]);
 
-            // Create worksheet
-            const ws = XLSX.utils.aoa_to_sheet(wsData);
+            const pCell = legendColorsRow.getCell(1);
+            pCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFC6EFCE' } };
+            pCell.font = { color: { argb: 'FF006100' }, bold: true };
 
-            // Set column widths
-            ws['!cols'] = [
-                { wch: 6 },   // S.No
-                { wch: 12 },  // Student ID
-                { wch: 20 },  // Student Name
-                { wch: 25 },  // Email
-                ...attendanceDates.map(() => ({ wch: 12 })), // Date columns
-                { wch: 12 },  // Total Present
-                { wch: 12 },  // Total Absent
-                { wch: 10 },  // Total Late
-                { wch: 12 },  // Attendance %
-                { wch: 12 },  // Assessment 1
-                { wch: 12 },  // Assessment 2
-                { wch: 8 },   // Task
-                { wch: 10 },  // Project
-                { wch: 15 },  // Final Validation
-                { wch: 12 },  // Total Marks
+            const aCell = legendColorsRow.getCell(2);
+            aCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFFC7CE' } };
+            aCell.font = { color: { argb: 'FF9C0006' }, bold: true };
+
+            const lCell = legendColorsRow.getCell(3);
+            lCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFFEB9C' } };
+            lCell.font = { color: { argb: 'FF9C5700' }, bold: true };
+
+            // 5. Adjust column widths
+            worksheet.columns = [
+                { width: 8 },   // S.No
+                { width: 15 },  // Student ID
+                { width: 25 },  // Student Name
+                { width: 30 },  // Email
+                ...attendanceDates.map(() => ({ width: 15 })), // Date columns
+                { width: 12 },  // Total Present
+                { width: 12 },  // Total Absent
+                { width: 10 },  // Total Late
+                { width: 15 },  // Attendance %
+                { width: 12 },  // Assessment 1
+                { width: 12 },  // Assessment 2
+                { width: 10 },  // Task
+                { width: 12 },  // Project
+                { width: 15 },  // Final Validation
+                { width: 12 },  // Total Marks
             ];
 
-            // Create workbook
-            const wb = XLSX.utils.book_new();
-            XLSX.utils.book_append_sheet(wb, ws, `${classData?.name || 'Class'} Attendance`);
-
-            // Export file
+            // 6. Generate and download file
+            const buffer = await workbook.xlsx.writeBuffer();
+            const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+            const url = window.URL.createObjectURL(blob);
+            const anchor = document.createElement('a');
+            anchor.href = url;
             const fileName = `${classData?.name || 'Class'}_Attendance_${new Date().toISOString().split('T')[0]}.xlsx`;
-            XLSX.writeFile(wb, fileName);
+            anchor.download = fileName;
+            anchor.click();
+            window.URL.revokeObjectURL(url);
 
             toast({
                 title: "Exported!",
@@ -258,6 +311,7 @@ export default function TechSupportDashboard({ userDisplayName }: { userDisplayN
             setIsExporting(false);
         }
     };
+
 
     // Open export modal
     const handleExportClick = () => {
