@@ -334,11 +334,31 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const user = await storage.getUser(req.user.claims.sub);
       if (!user) return res.status(401).json({ message: "User not found" });
 
-      const mentorEmail = user.email as string;
-      const absentDetails = await storage.getAbsentDetailsForMentor(mentorEmail);
+      const { classId, subject, message } = req.body;
+      let targetStudents = [];
+      let className = "";
 
-      if (absentDetails.length === 0) {
-        return res.json({ message: "No absent students found to notify" });
+      if (classId) {
+        // Broad notification for a specific class
+        const cls = await storage.getClass(parseInt(classId));
+        if (!cls) return res.status(404).json({ message: "Class not found" });
+        className = cls.name;
+
+        const students = await storage.getClassStudents(parseInt(classId));
+        targetStudents = students.filter(s => !!s.email).map(s => ({
+          studentName: s.name,
+          studentEmail: s.email!,
+          className: className,
+          date: new Date().toLocaleDateString() // Just a fallback date
+        }));
+      } else {
+        // Original behavior: notify absent students across all mentor's classes
+        const mentorEmail = user.email as string;
+        targetStudents = await storage.getAbsentDetailsForMentor(mentorEmail);
+      }
+
+      if (targetStudents.length === 0) {
+        return res.json({ message: "No students found to notify" });
       }
 
       // Try database config first, fallback to environment variables
@@ -369,9 +389,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
       }
 
-      // At this point, smtpConfig is guaranteed to be defined (early return above if not)
       const validConfig = smtpConfig!;
-
       const results = [];
       const config = {
         smtpServer: validConfig.smtpServer,
@@ -380,24 +398,33 @@ export async function registerRoutes(app: Express): Promise<Server> {
         appPassword: validConfig.appPassword
       };
 
-      // Get the current user's full name and email for the signature
       const userName = user.fullName || user.firstName || user.email || 'Team Support';
       const userEmail = user.email || '';
 
-      for (const student of absentDetails) {
+      for (const student of targetStudents) {
         try {
-          await sendEmail({
-            to: student.studentEmail,
-            from: userEmail ? `"${userName}" <${userEmail}>` : undefined,
-            subject: `Absence Notification - ${student.className}`,
-            text: `Dear ${student.studentName},\n\nYou were marked absent for the ${student.className} class on ${student.date}. Please ensure you attend the next session.\n\nIf you have any questions, please contact your Team Lead.\n\nBest regards,\n${userName}\n📧 ${userEmail}`,
-            html: `<p>Dear <b>${student.studentName}</b>,</p>
+          const finalSubject = subject || `Absence Notification - ${student.className}`;
+          const finalMessage = message
+            ? message.replace('{studentName}', student.studentName)
+            : `Dear ${student.studentName},\n\nYou were marked absent for the ${student.className} class on ${student.date}. Please ensure you attend the next session.\n\nIf you have any questions, please contact your Team Lead.\n\nBest regards,\n${userName}\n📧 ${userEmail}`;
+
+          // Format HTML version if custom message
+          const finalHtml = message
+            ? `<p>${finalMessage.replace(/\n/g, '<br>')}</p>`
+            : `<p>Dear <b>${student.studentName}</b>,</p>
 <p>You were marked absent for the <b>${student.className}</b> class on <b>${student.date}</b>. Please ensure you attend the next session.</p>
 <p>If you have any questions, please contact your Team Lead.</p>
 <hr style="border: 0; border-top: 1px solid #e2e8f0; margin: 20px 0;">
 <p style="margin: 0;">Best regards,</p>
 <p style="margin: 0;"><b>${userName}</b></p>
-<p style="margin: 0;">📧 ${userEmail}</p>`,
+<p style="margin: 0;">📧 ${userEmail}</p>`;
+
+          await sendEmail({
+            to: student.studentEmail,
+            from: userEmail ? `"${userName}" <${userEmail}>` : undefined,
+            subject: finalSubject,
+            text: finalMessage,
+            html: finalHtml,
           }, config);
           results.push({ student: student.studentName, status: "Sent" });
         } catch (err: any) {
@@ -406,7 +433,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
       }
 
-      res.json({ message: "Notifications processed", results });
+      res.json({ message: `Successfully processed ${results.filter(r => r.status === "Sent").length} notifications`, results });
     } catch (error: any) {
       console.error('[POST /api/tech-support/notify-students] Error:', error);
       res.status(500).json({ message: "Failed to process notifications", error: error.message });

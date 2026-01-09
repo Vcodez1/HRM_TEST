@@ -22,6 +22,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import {
     Dialog,
     DialogContent,
@@ -60,12 +61,10 @@ export default function TechSupportDashboard({ userDisplayName }: { userDisplayN
     const { toast } = useToast();
 
     const notifyMutation = useMutation({
-        mutationFn: async () => {
-            console.log('[notifyMutation] Triggering notification API...');
-            const response = await apiRequest("POST", "/api/tech-support/notify-students");
-            const data = await response.json();
-            console.log('[notifyMutation] API Response:', data);
-            return data;
+        mutationFn: async (data: { classId: string; subject: string; message: string }) => {
+            console.log('[notifyMutation] Triggering notification API...', data);
+            const response = await apiRequest("POST", "/api/tech-support/notify-students", data);
+            return await response.json();
         },
         onSuccess: (data) => {
             console.log('[notifyMutation] Success:', data);
@@ -90,6 +89,12 @@ export default function TechSupportDashboard({ userDisplayName }: { userDisplayN
     const [fromDate, setFromDate] = useState("");
     const [toDate, setToDate] = useState("");
     const [isExporting, setIsExporting] = useState(false);
+
+    // Notification modal state
+    const [showNotifyModal, setShowNotifyModal] = useState(false);
+    const [notifyClassId, setNotifyClassId] = useState<string>("");
+    const [notifySubject, setNotifySubject] = useState("");
+    const [notifyMessage, setNotifyMessage] = useState("");
 
     // Fetch classes for dropdown
     const { data: classes } = useQuery<any[]>({
@@ -409,7 +414,7 @@ export default function TechSupportDashboard({ userDisplayName }: { userDisplayN
 
                             <div
                                 className={`group cursor-pointer ${notifyMutation.isPending ? 'opacity-50 cursor-not-allowed' : ''}`}
-                                onClick={() => !notifyMutation.isPending && notifyMutation.mutate()}
+                                onClick={() => !notifyMutation.isPending && setShowNotifyModal(true)}
                             >
                                 <div className="h-28 flex flex-col items-center justify-center border-2 border-yellow-400 bg-yellow-50/50 dark:bg-yellow-900/10 rounded-2xl p-4 transition-all hover:bg-yellow-100 dark:hover:bg-yellow-900/20 hover:shadow-lg">
                                     {notifyMutation.isPending ? (
@@ -586,6 +591,73 @@ export default function TechSupportDashboard({ userDisplayName }: { userDisplayN
                                 Cancel
                             </Button>
                         </div>
+                    </div>
+                </DialogContent>
+            </Dialog>
+
+            {/* Notification Modal */}
+            <Dialog open={showNotifyModal} onOpenChange={setShowNotifyModal}>
+                <DialogContent className="sm:max-w-[500px]">
+                    <DialogHeader>
+                        <DialogTitle className="flex items-center gap-2">
+                            <Bell className="h-5 w-5 text-yellow-600" />
+                            Send Notification to Students
+                        </DialogTitle>
+                    </DialogHeader>
+                    <div className="space-y-4 py-4">
+                        <div className="space-y-2">
+                            <label className="text-sm font-medium">Select Subject/Class</label>
+                            <Select value={notifyClassId} onValueChange={setNotifyClassId}>
+                                <SelectTrigger>
+                                    <SelectValue placeholder="-- Select a class --" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    {classes?.map((cls: any) => (
+                                        <SelectItem key={cls.id} value={cls.id.toString()}>
+                                            {cls.name}
+                                        </SelectItem>
+                                    ))}
+                                </SelectContent>
+                            </Select>
+                        </div>
+                        <div className="space-y-2">
+                            <label className="text-sm font-medium">Email Subject</label>
+                            <Input
+                                placeholder="Enter subject"
+                                value={notifySubject}
+                                onChange={(e) => setNotifySubject(e.target.value)}
+                            />
+                        </div>
+                        <div className="space-y-2">
+                            <label className="text-sm font-medium">Message Description</label>
+                            <Textarea
+                                placeholder="Enter your message to students..."
+                                className="min-h-[120px]"
+                                value={notifyMessage}
+                                onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => setNotifyMessage(e.target.value)}
+                            />
+                        </div>
+                    </div>
+                    <div className="flex justify-end gap-3 pt-4 border-t">
+                        <Button variant="outline" onClick={() => setShowNotifyModal(false)}>
+                            Cancel
+                        </Button>
+                        <Button
+                            className="bg-yellow-500 hover:bg-yellow-600 text-white flex items-center gap-2"
+                            disabled={notifyMutation.isPending || !notifyClassId || !notifySubject || !notifyMessage}
+                            onClick={() => {
+                                notifyMutation.mutate({
+                                    classId: notifyClassId,
+                                    subject: notifySubject,
+                                    message: notifyMessage
+                                }, {
+                                    onSuccess: () => setShowNotifyModal(false)
+                                });
+                            }}
+                        >
+                            {notifyMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Bell className="h-4 w-4" />}
+                            Send Notification
+                        </Button>
                     </div>
                 </DialogContent>
             </Dialog>
