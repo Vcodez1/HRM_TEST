@@ -211,7 +211,7 @@ export default function ClassMarksPage() {
         return (
             <div className="flex h-screen bg-[#F8FAFC]">
                 <Sidebar />
-                <main className="flex-1 flex items-center justify-center">
+                <main className="flex-1 flex items-center justify-center ml-64">
                     <Loader2 className="h-8 w-8 animate-spin text-indigo-600" />
                 </main>
             </div>
@@ -225,7 +225,7 @@ export default function ClassMarksPage() {
     return (
         <div className="flex h-screen bg-[#F8FAFC]">
             <Sidebar />
-            <main className="flex-1 p-8 overflow-y-auto">
+            <main className="flex-1 p-8 overflow-y-auto ml-64">
                 <div className="max-w-7xl mx-auto space-y-6">
                     {/* Back Button */}
                     <Button
