@@ -201,7 +201,7 @@ export default function Sidebar() {
       href: (user as any)?.role === 'accounts' || (user as any)?.role === 'session_organizer' || isSessOrg ? "/my-leads" : "/leads",
       icon: Users,
       current: (user as any)?.role === 'accounts' || (user as any)?.role === 'session_organizer' || isSessOrg ? location === "/my-leads" : location === "/leads",
-      roleRequired: ["admin", "manager", "hr", "accounts", "session_organizer", "team_lead", "session-coordinator", "tech-support"],
+      roleRequired: ["admin", "manager", "hr", "accounts", "session_organizer", "team_lead", "session-coordinator"],
     },
     {
       name: "My Sessions",
@@ -246,6 +246,7 @@ export default function Sidebar() {
       href: "/audit",
       icon: History,
       current: location === "/audit",
+      roleRequired: ["admin", "manager"],
     },
     {
       name: "Kathipom",
@@ -449,8 +450,8 @@ export default function Sidebar() {
           );
         })}
 
-        {/* My Leads Section for HR, Tech Support, Manager, and Admin Users - NOT for Accounts (they use main My Leads) */}
-        {((user as any)?.role === 'hr' || (user as any)?.role === 'tech-support' || (user as any)?.role === 'manager' || (user as any)?.role === 'admin') && (
+        {/* My Leads Section for HR, Manager, and Admin Users - NOT for Accounts (they use main My Leads) */}
+        {((user as any)?.role === 'hr' || (user as any)?.role === 'manager' || (user as any)?.role === 'admin') && (
           <div className="mt-6 pt-4 border-t border-border">
             <button
               onClick={() => setMyLeadsExpanded(!myLeadsExpanded)}
@@ -623,8 +624,8 @@ export default function Sidebar() {
           </div>
         )}
 
-        {/* My Completion section for HR, Accounts, Session Coordinator, Tech Support, Manager, and Admin users */}
-        {((user as any)?.role === 'hr' || (user as any)?.role === 'accounts' || (user as any)?.role === 'session-coordinator' || (user as any)?.role === 'tech-support' || (user as any)?.role === 'manager' || (user as any)?.role === 'admin') && (
+        {/* My Completion section for HR, Accounts, Session Coordinator, Manager, and Admin users */}
+        {((user as any)?.role === 'hr' || (user as any)?.role === 'accounts' || (user as any)?.role === 'session-coordinator' || (user as any)?.role === 'manager' || (user as any)?.role === 'admin') && (
           <div className="mt-4">
             <button
               onClick={() => setMyCompletionExpanded(!myCompletionExpanded)}
