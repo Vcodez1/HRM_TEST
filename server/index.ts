@@ -60,6 +60,17 @@ async function runDatabaseMigrations() {
     await db.execute(sql`ALTER TABLE class_students ADD COLUMN IF NOT EXISTS student_id TEXT`);
     await db.execute(sql`ALTER TABLE class_students ADD COLUMN IF NOT EXISTS joined_at TIMESTAMP DEFAULT NOW()`);
     console.log('[Migration] class_students table schema updated successfully');
+
+    // Add missing columns to marks table
+    await db.execute(sql`ALTER TABLE marks ADD COLUMN IF NOT EXISTS assessment1 INTEGER DEFAULT 0`);
+    await db.execute(sql`ALTER TABLE marks ADD COLUMN IF NOT EXISTS assessment2 INTEGER DEFAULT 0`);
+    await db.execute(sql`ALTER TABLE marks ADD COLUMN IF NOT EXISTS task INTEGER DEFAULT 0`);
+    await db.execute(sql`ALTER TABLE marks ADD COLUMN IF NOT EXISTS project INTEGER DEFAULT 0`);
+    await db.execute(sql`ALTER TABLE marks ADD COLUMN IF NOT EXISTS final_validation INTEGER DEFAULT 0`);
+    await db.execute(sql`ALTER TABLE marks ADD COLUMN IF NOT EXISTS total INTEGER DEFAULT 0`);
+    await db.execute(sql`ALTER TABLE marks ADD COLUMN IF NOT EXISTS created_at TIMESTAMP DEFAULT NOW()`);
+    await db.execute(sql`ALTER TABLE marks ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP DEFAULT NOW()`);
+    console.log('[Migration] Marks table schema updated successfully');
   } catch (error: any) {
     console.error('[Migration] Error updating schema:', error.message);
     // Don't fail startup, the columns might already exist
