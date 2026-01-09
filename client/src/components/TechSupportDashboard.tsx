@@ -3,6 +3,7 @@ import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { Loader2 } from "lucide-react";
 import * as XLSX from "xlsx";
+import { useState } from "react";
 import {
     Users,
     BookMarked,
@@ -12,11 +13,28 @@ import {
     Layout,
     CheckCircle,
     Clock,
-    Calendar
+    Calendar,
+    Filter,
+    FileSpreadsheet,
+    X
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { Input } from "@/components/ui/input";
+import {
+    Dialog,
+    DialogContent,
+    DialogHeader,
+    DialogTitle,
+} from "@/components/ui/dialog";
+import {
+    Select,
+    SelectContent,
+    SelectItem,
+    SelectTrigger,
+    SelectValue,
+} from "@/components/ui/select";
 import { format } from "date-fns";
 import { Link } from "wouter";
 import { KathaipomFeed } from "@/components/KathaipomFeed";
@@ -66,50 +84,184 @@ export default function TechSupportDashboard({ userDisplayName }: { userDisplayN
         },
     });
 
-    // Export data function
-    const exportData = () => {
-        if (!metrics?.recentRecords || metrics.recentRecords.length === 0) {
+    // Export modal state
+    const [showExportModal, setShowExportModal] = useState(false);
+    const [selectedClassId, setSelectedClassId] = useState<string>("");
+    const [fromDate, setFromDate] = useState("");
+    const [toDate, setToDate] = useState("");
+    const [isExporting, setIsExporting] = useState(false);
+
+    // Fetch classes for dropdown
+    const { data: classes } = useQuery<any[]>({
+        queryKey: ["/api/classes"],
+    });
+
+    // Fetch selected class details, students, attendance, and marks
+    const performExport = async () => {
+        if (!selectedClassId) {
             toast({
-                title: "No Data",
-                description: "No attendance records to export",
+                title: "Select a Class",
+                description: "Please select a class to export",
                 variant: "destructive",
             });
             return;
         }
 
-        // Build export data from recent records
-        const exportRows = metrics.recentRecords.map((record, index) => ({
-            "S.No": index + 1,
-            "Student Name": record.studentName,
-            "Class": record.className,
-            "Date": record.date,
-            "Status": record.status,
-            "Marked At": record.markedAt,
-        }));
+        setIsExporting(true);
+        try {
+            // Fetch class info
+            const classRes = await fetch(`/api/classes/${selectedClassId}`, { credentials: 'include' });
+            const classData = await classRes.json();
 
-        // Create workbook and worksheet
-        const ws = XLSX.utils.json_to_sheet(exportRows);
-        const wb = XLSX.utils.book_new();
-        XLSX.utils.book_append_sheet(wb, ws, "Attendance Records");
+            // Fetch students
+            const studentsRes = await fetch(`/api/classes/${selectedClassId}/student-mappings`, { credentials: 'include' });
+            const students = await studentsRes.json();
 
-        // Auto-size columns
-        ws['!cols'] = [
-            { wch: 6 },   // S.No
-            { wch: 25 },  // Student Name
-            { wch: 20 },  // Class
-            { wch: 12 },  // Date
-            { wch: 10 },  // Status
-            { wch: 20 },  // Marked At
-        ];
+            // Fetch marks
+            const marksRes = await fetch(`/api/classes/${selectedClassId}/marks`, { credentials: 'include' });
+            const marks = await marksRes.json();
 
-        // Export file
-        const fileName = `Attendance_Records_${new Date().toISOString().split('T')[0]}.xlsx`;
-        XLSX.writeFile(wb, fileName);
+            // Fetch attendance
+            const attendanceRes = await fetch(`/api/classes/${selectedClassId}/attendance`, { credentials: 'include' });
+            const attendance = await attendanceRes.json();
 
-        toast({
-            title: "Exported!",
-            description: `Data exported to ${fileName}`,
-        });
+            if (!students || students.length === 0) {
+                toast({
+                    title: "No Students",
+                    description: "No students found in this class",
+                    variant: "destructive",
+                });
+                setIsExporting(false);
+                return;
+            }
+
+            // Get unique dates from attendance, filtered by date range if specified
+            let attendanceDates: string[] = Array.from(new Set(attendance.map((a: any) => a.date))).sort() as string[];
+            if (fromDate) {
+                attendanceDates = attendanceDates.filter((d: string) => d >= fromDate);
+            }
+            if (toDate) {
+                attendanceDates = attendanceDates.filter((d: string) => d <= toDate);
+            }
+
+            // Calculate attendance stats per student
+            const getAttendanceStats = (leadId: number) => {
+                const studentAtt = attendance.filter((a: any) => a.leadId === leadId);
+                const present = studentAtt.filter((a: any) => a.status === 'Present').length;
+                const absent = studentAtt.filter((a: any) => a.status === 'Absent').length;
+                const late = studentAtt.filter((a: any) => a.status === 'Late').length;
+                const total = studentAtt.length;
+                const percentage = total > 0 ? Math.round((present / total) * 100) : 0;
+                return { present, absent, late, percentage };
+            };
+
+            // Build the worksheet data in the exact format
+            const wsData: any[][] = [];
+
+            // Header row with all columns
+            const headers = [
+                "S.No", "Student ID", "Student Name", "Email",
+                ...(attendanceDates.length > 0 ? attendanceDates : ["Date"]),
+                "Total Present", "Total Absent", "Total Late", "Attendance %",
+                "Assessment 1", "Assessment 2", "Task", "Project", "Final Validation", "Total Marks"
+            ];
+            wsData.push(headers);
+
+            // Meta rows
+            wsData.push([`Class:`, classData?.name || "N/A", classData?.subject || ""]);
+            wsData.push([`Teacher:`, userDisplayName]);
+            wsData.push([`Export Date:`, format(new Date(), 'MM/dd/yyyy hh:mm a')]);
+            wsData.push([]); // Empty row
+
+            // Student data rows
+            students.forEach((student: any, index: number) => {
+                const mark = marks.find((m: any) => m.leadId === student.id) || {};
+                const stats = getAttendanceStats(student.id);
+
+                // Get attendance status for each date
+                const dateStatuses = attendanceDates.map((date: string) => {
+                    const att = attendance.find((a: any) => a.leadId === student.id && a.date === date);
+                    return att?.status || "";
+                });
+
+                const row = [
+                    index + 1,
+                    student.studentId || "PENDING",
+                    student.name,
+                    student.email || "",
+                    ...dateStatuses,
+                    stats.present,
+                    stats.absent,
+                    stats.late,
+                    `${stats.percentage}%`,
+                    mark.assessment1 || 0,
+                    mark.assessment2 || 0,
+                    mark.task || 0,
+                    mark.project || 0,
+                    mark.finalValidation || 0,
+                    mark.total || 0
+                ];
+                wsData.push(row);
+            });
+
+            // Empty rows before legend
+            wsData.push([]);
+            wsData.push([]);
+
+            // Legend row
+            wsData.push(["Legend:"]);
+            wsData.push(["Present", "Absent", "Late"]);
+
+            // Create worksheet
+            const ws = XLSX.utils.aoa_to_sheet(wsData);
+
+            // Set column widths
+            ws['!cols'] = [
+                { wch: 6 },   // S.No
+                { wch: 12 },  // Student ID
+                { wch: 20 },  // Student Name
+                { wch: 25 },  // Email
+                ...attendanceDates.map(() => ({ wch: 12 })), // Date columns
+                { wch: 12 },  // Total Present
+                { wch: 12 },  // Total Absent
+                { wch: 10 },  // Total Late
+                { wch: 12 },  // Attendance %
+                { wch: 12 },  // Assessment 1
+                { wch: 12 },  // Assessment 2
+                { wch: 8 },   // Task
+                { wch: 10 },  // Project
+                { wch: 15 },  // Final Validation
+                { wch: 12 },  // Total Marks
+            ];
+
+            // Create workbook
+            const wb = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(wb, ws, `${classData?.name || 'Class'} Attendance`);
+
+            // Export file
+            const fileName = `${classData?.name || 'Class'}_Attendance_${new Date().toISOString().split('T')[0]}.xlsx`;
+            XLSX.writeFile(wb, fileName);
+
+            toast({
+                title: "Exported!",
+                description: `Data exported to ${fileName}`,
+            });
+            setShowExportModal(false);
+        } catch (error) {
+            console.error('Export error:', error);
+            toast({
+                title: "Export Failed",
+                description: "Failed to export data",
+                variant: "destructive",
+            });
+        } finally {
+            setIsExporting(false);
+        }
+    };
+
+    // Open export modal
+    const handleExportClick = () => {
+        setShowExportModal(true);
     };
 
     if (isLoading) {
@@ -194,7 +346,7 @@ export default function TechSupportDashboard({ userDisplayName }: { userDisplayN
                                 </div>
                             </div>
 
-                            <div className="group cursor-pointer" onClick={exportData}>
+                            <div className="group cursor-pointer" onClick={handleExportClick}>
                                 <div className="h-28 flex flex-col items-center justify-center border-2 border-green-400 bg-green-50/50 dark:bg-green-900/10 rounded-2xl p-4 transition-all group-hover:bg-green-100 dark:group-hover:bg-green-900/20 group-hover:shadow-lg">
                                     <Download className="h-8 w-8 text-green-500 mb-2" />
                                     <span className="text-green-600 dark:text-green-400 font-bold uppercase text-[10px] tracking-widest text-center">Export Data</span>
@@ -296,6 +448,93 @@ export default function TechSupportDashboard({ userDisplayName }: { userDisplayN
                     </div>
                 </div>
             </div>
+
+            {/* Export Modal */}
+            <Dialog open={showExportModal} onOpenChange={setShowExportModal}>
+                <DialogContent className="sm:max-w-[500px]">
+                    <DialogHeader>
+                        <DialogTitle className="flex items-center gap-2">
+                            <FileSpreadsheet className="h-5 w-5 text-green-600" />
+                            Export Attendance & Marks
+                        </DialogTitle>
+                    </DialogHeader>
+                    <div className="space-y-4 py-4">
+                        {/* Class Selection */}
+                        <div className="space-y-2">
+                            <label className="text-sm font-medium text-slate-700 dark:text-slate-300">
+                                Select Class <span className="text-red-500">*</span>
+                            </label>
+                            <Select value={selectedClassId} onValueChange={setSelectedClassId}>
+                                <SelectTrigger className="w-full">
+                                    <SelectValue placeholder="Choose a class..." />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    {classes?.map((cls: any) => (
+                                        <SelectItem key={cls.id} value={cls.id.toString()}>
+                                            {cls.name} {cls.subject ? `(${cls.subject})` : ''}
+                                        </SelectItem>
+                                    ))}
+                                </SelectContent>
+                            </Select>
+                        </div>
+
+                        {/* Date Range Filters */}
+                        <div className="grid grid-cols-2 gap-4">
+                            <div className="space-y-2">
+                                <label className="text-sm font-medium text-slate-700 dark:text-slate-300">
+                                    From Date (Optional)
+                                </label>
+                                <Input
+                                    type="date"
+                                    value={fromDate}
+                                    onChange={(e) => setFromDate(e.target.value)}
+                                    className="w-full"
+                                />
+                            </div>
+                            <div className="space-y-2">
+                                <label className="text-sm font-medium text-slate-700 dark:text-slate-300">
+                                    To Date (Optional)
+                                </label>
+                                <Input
+                                    type="date"
+                                    value={toDate}
+                                    onChange={(e) => setToDate(e.target.value)}
+                                    className="w-full"
+                                />
+                            </div>
+                        </div>
+                        <p className="text-xs text-slate-500">Leave dates empty to include all attendance records</p>
+
+                        {/* Export Buttons */}
+                        <div className="flex gap-3 pt-4">
+                            <Button
+                                onClick={performExport}
+                                disabled={!selectedClassId || isExporting}
+                                className="flex-1 bg-green-600 hover:bg-green-700 text-white"
+                            >
+                                {isExporting ? (
+                                    <>
+                                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                                        Exporting...
+                                    </>
+                                ) : (
+                                    <>
+                                        <FileSpreadsheet className="h-4 w-4 mr-2" />
+                                        Export Excel
+                                    </>
+                                )}
+                            </Button>
+                            <Button
+                                variant="outline"
+                                onClick={() => setShowExportModal(false)}
+                                className="flex-1"
+                            >
+                                Cancel
+                            </Button>
+                        </div>
+                    </div>
+                </DialogContent>
+            </Dialog>
         </div>
     );
 }
