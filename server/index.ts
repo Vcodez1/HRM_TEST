@@ -61,6 +61,21 @@ async function runDatabaseMigrations() {
     await db.execute(sql`ALTER TABLE class_students ADD COLUMN IF NOT EXISTS joined_at TIMESTAMP DEFAULT NOW()`);
     console.log('[Migration] class_students table schema updated successfully');
 
+    // Fix marks table - handle potential old schema with 'subject' column
+    try {
+      // Try to drop the obsolete 'subject' column if it exists
+      await db.execute(sql`ALTER TABLE marks DROP COLUMN IF EXISTS subject`);
+      console.log('[Migration] Dropped obsolete subject column from marks table');
+    } catch (dropErr) {
+      // If drop fails, try to make it nullable
+      try {
+        await db.execute(sql`ALTER TABLE marks ALTER COLUMN subject DROP NOT NULL`);
+        console.log('[Migration] Made subject column nullable in marks table');
+      } catch (e) {
+        console.log('[Migration] Subject column handling completed (may not exist)');
+      }
+    }
+
     // Add missing columns to marks table
     await db.execute(sql`ALTER TABLE marks ADD COLUMN IF NOT EXISTS assessment1 INTEGER DEFAULT 0`);
     await db.execute(sql`ALTER TABLE marks ADD COLUMN IF NOT EXISTS assessment2 INTEGER DEFAULT 0`);
