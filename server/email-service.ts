@@ -16,26 +16,26 @@ export interface SMTPConfig {
 }
 
 /**
- * Sends an email using SMTP (priority) or Resend API (fallback).
- * SMTP is preferred because emails will come from the user's configured email address.
- * Resend is only used as fallback when no SMTP config is available.
+ * Sends an email using Resend API (priority) or SMTP (fallback).
+ * Resend is preferred because Render blocks outbound SMTP connections.
+ * SMTP is kept as fallback for local development or other hosting platforms.
  */
 export async function sendEmail(options: EmailOptions, config?: SMTPConfig) {
     const resendKey = process.env.RESEND_API_KEY;
 
-    // PRIORITY: Use SMTP if config is provided (emails come from user's email)
+    // PRIORITY: Use Resend API (works on Render and cloud platforms)
+    if (resendKey) {
+        console.log(`[EmailService] Using Resend API to send email to ${options.to}`);
+        return sendWithResend(options, resendKey);
+    }
+
+    // FALLBACK: Use SMTP (for local dev or platforms that allow SMTP)
     if (config && config.smtpEmail && config.appPassword) {
         console.log(`[EmailService] Using SMTP to send email to ${options.to} (From: ${config.smtpEmail})`);
         return sendWithSMTP(options, config);
     }
 
-    // FALLBACK: Use Resend API if available (emails come from onboarding@resend.dev)
-    if (resendKey) {
-        console.log(`[EmailService] Using Resend API to send email to ${options.to} (SMTP not configured)`);
-        return sendWithResend(options, resendKey);
-    }
-
-    throw new Error("Email configuration is required. Please configure SMTP settings or set RESEND_API_KEY.");
+    throw new Error("Email configuration is required. Please set RESEND_API_KEY or configure SMTP settings.");
 }
 
 async function sendWithResend(options: EmailOptions, apiKey: string) {
