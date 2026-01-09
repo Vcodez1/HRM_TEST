@@ -61,19 +61,22 @@ async function runDatabaseMigrations() {
     await db.execute(sql`ALTER TABLE class_students ADD COLUMN IF NOT EXISTS joined_at TIMESTAMP DEFAULT NOW()`);
     console.log('[Migration] class_students table schema updated successfully');
 
-    // Fix marks table - handle potential old schema with 'subject' column
+    // Fix marks table - handle potential old schema with obsolete columns
     try {
-      // Try to drop the obsolete 'subject' column if it exists
+      // Drop obsolete columns that don't exist in our schema
       await db.execute(sql`ALTER TABLE marks DROP COLUMN IF EXISTS subject`);
-      console.log('[Migration] Dropped obsolete subject column from marks table');
+      await db.execute(sql`ALTER TABLE marks DROP COLUMN IF EXISTS date`);
+      console.log('[Migration] Dropped obsolete columns (subject, date) from marks table');
     } catch (dropErr) {
-      // If drop fails, try to make it nullable
+      // If drop fails, try to make them nullable
       try {
         await db.execute(sql`ALTER TABLE marks ALTER COLUMN subject DROP NOT NULL`);
-        console.log('[Migration] Made subject column nullable in marks table');
-      } catch (e) {
-        console.log('[Migration] Subject column handling completed (may not exist)');
-      }
+        console.log('[Migration] Made subject column nullable');
+      } catch (e) { /* column may not exist */ }
+      try {
+        await db.execute(sql`ALTER TABLE marks ALTER COLUMN date DROP NOT NULL`);
+        console.log('[Migration] Made date column nullable');
+      } catch (e) { /* column may not exist */ }
     }
 
     // Add missing columns to marks table
