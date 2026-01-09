@@ -2,6 +2,7 @@ import { useQuery, useMutation } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { Loader2 } from "lucide-react";
+import * as XLSX from "xlsx";
 import {
     Users,
     BookMarked,
@@ -64,6 +65,52 @@ export default function TechSupportDashboard({ userDisplayName }: { userDisplayN
             });
         },
     });
+
+    // Export data function
+    const exportData = () => {
+        if (!metrics?.recentRecords || metrics.recentRecords.length === 0) {
+            toast({
+                title: "No Data",
+                description: "No attendance records to export",
+                variant: "destructive",
+            });
+            return;
+        }
+
+        // Build export data from recent records
+        const exportRows = metrics.recentRecords.map((record, index) => ({
+            "S.No": index + 1,
+            "Student Name": record.studentName,
+            "Class": record.className,
+            "Date": record.date,
+            "Status": record.status,
+            "Marked At": record.markedAt,
+        }));
+
+        // Create workbook and worksheet
+        const ws = XLSX.utils.json_to_sheet(exportRows);
+        const wb = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(wb, ws, "Attendance Records");
+
+        // Auto-size columns
+        ws['!cols'] = [
+            { wch: 6 },   // S.No
+            { wch: 25 },  // Student Name
+            { wch: 20 },  // Class
+            { wch: 12 },  // Date
+            { wch: 10 },  // Status
+            { wch: 20 },  // Marked At
+        ];
+
+        // Export file
+        const fileName = `Attendance_Records_${new Date().toISOString().split('T')[0]}.xlsx`;
+        XLSX.writeFile(wb, fileName);
+
+        toast({
+            title: "Exported!",
+            description: `Data exported to ${fileName}`,
+        });
+    };
 
     if (isLoading) {
         return (
@@ -147,7 +194,7 @@ export default function TechSupportDashboard({ userDisplayName }: { userDisplayN
                                 </div>
                             </div>
 
-                            <div className="group cursor-pointer">
+                            <div className="group cursor-pointer" onClick={exportData}>
                                 <div className="h-28 flex flex-col items-center justify-center border-2 border-green-400 bg-green-50/50 dark:bg-green-900/10 rounded-2xl p-4 transition-all group-hover:bg-green-100 dark:group-hover:bg-green-900/20 group-hover:shadow-lg">
                                     <Download className="h-8 w-8 text-green-500 mb-2" />
                                     <span className="text-green-600 dark:text-green-400 font-bold uppercase text-[10px] tracking-widest text-center">Export Data</span>
