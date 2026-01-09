@@ -39,6 +39,12 @@ export async function sendEmail(options: EmailOptions, config?: SMTPConfig) {
 }
 
 async function sendWithResend(options: EmailOptions, apiKey: string) {
+    // Resend requires domain verification for custom "from" addresses
+    // Always use Resend's default sender unless a verified domain is configured
+    const fromEmail = process.env.RESEND_FROM_EMAIL || 'onboarding@resend.dev';
+
+    console.log(`[EmailService] Resend: from=${fromEmail}, to=${options.to}`);
+
     const response = await fetch('https://api.resend.com/emails', {
         method: 'POST',
         headers: {
@@ -46,7 +52,7 @@ async function sendWithResend(options: EmailOptions, apiKey: string) {
             'Authorization': `Bearer ${apiKey}`,
         },
         body: JSON.stringify({
-            from: options.from || process.env.FROM_EMAIL || 'onboarding@resend.dev',
+            from: fromEmail,
             to: options.to,
             subject: options.subject,
             html: options.html,
