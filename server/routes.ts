@@ -4396,25 +4396,40 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (isNaN(classId)) return res.status(400).json({ message: 'Invalid class ID' });
 
       console.log(`[POST marks bulk] Saving bulk marks for class ${classId}`);
+      console.log(`[POST marks bulk] Request body:`, JSON.stringify(req.body, null, 2));
+
       const { marks: marksList } = req.body;
       if (!Array.isArray(marksList)) {
+        console.log(`[POST marks bulk] Error: marks is not an array`);
         return res.status(400).json({ message: 'Invalid marks data' });
       }
 
+      console.log(`[POST marks bulk] Received ${marksList.length} marks to save`);
+
       const results = [];
       for (const mark of marksList) {
+        // Explicitly extract only the fields we need to avoid schema mismatches
         const markData = {
-          ...mark,
-          classId
+          classId,
+          leadId: mark.leadId,
+          assessment1: mark.assessment1 ?? 0,
+          assessment2: mark.assessment2 ?? 0,
+          task: mark.task ?? 0,
+          project: mark.project ?? 0,
+          finalValidation: mark.finalValidation ?? 0,
         };
+
+        console.log(`[POST marks bulk] Saving mark for lead ${mark.leadId}:`, markData);
         const mk = await storage.addMark(markData);
+        console.log(`[POST marks bulk] Saved mark ID ${mk.id} successfully`);
         results.push(mk);
       }
-      console.log(`[POST marks bulk] Saved ${results.length} marks`);
+      console.log(`[POST marks bulk] Saved ${results.length} marks successfully`);
 
       res.json(results);
     } catch (error: any) {
       console.error('[POST marks bulk] Error:', error);
+      console.error('[POST marks bulk] Error stack:', error.stack);
       res.status(500).json({ message: 'Failed to save marks', error: error.message });
     }
   });
