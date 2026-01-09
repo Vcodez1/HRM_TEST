@@ -105,8 +105,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Email Configuration routes
   app.get('/api/email-config', isAuthenticated, async (req: any, res) => {
     try {
-      console.log('[GET /api/email-config] Fetching email config for user:', req.user.id);
-      const config = await storage.getEmailConfig(req.user.id);
+      // Get user ID from the correct property (matching POST endpoint pattern)
+      const userId = req.user?.claims?.sub || req.user?.id;
+      console.log('[GET /api/email-config] Fetching email config for user:', userId);
+      const config = await storage.getEmailConfig(userId);
 
       if (config) {
         console.log('[GET /api/email-config] ✓ Found config in database:', {
@@ -128,6 +130,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.status(500).json({ message: "Failed to fetch email configuration", error: error.message });
     }
   });
+
 
   app.post('/api/email-config', isAuthenticated, async (req: any, res) => {
     try {
