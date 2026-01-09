@@ -72,7 +72,8 @@ export default function ClassAttendancePage() {
             const initialMap: Record<number, string> = {};
             students.forEach(s => {
                 const existing = existingAttendance?.find(a => a.leadId === s.id);
-                initialMap[s.id] = existing?.status || "Present"; // Default to Present as in ref image UI
+                // If no existing record, leave empty (unselected) until user marks attendance
+                initialMap[s.id] = existing?.status || "";
             });
             setAttendanceMap(initialMap);
         }
