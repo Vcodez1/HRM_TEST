@@ -134,21 +134,30 @@ export async function registerRoutes(app: Express): Promise<Server> {
       console.log('[POST /api/email-config] ═══════════════════════════════════');
       console.log('[POST /api/email-config] Saving email config to database...');
 
+      // Get user ID from the correct property (matching other endpoints pattern)
+      const userId = req.user?.claims?.sub || req.user?.id;
+
       // Enhanced debugging: Log user authentication details
       console.log('[POST /api/email-config] User details:', {
-        userId: req.user?.id,
+        userId: userId,
+        userIdDirect: req.user?.id,
+        claimsSub: req.user?.claims?.sub,
         userEmail: req.user?.email,
         userRole: req.user?.role,
         hasUser: !!req.user
       });
 
       // Check if user ID exists
-      if (!req.user || !req.user.id) {
-        console.error('[POST /api/email-config] ✗ CRITICAL: req.user.id is undefined!');
+      if (!userId) {
+        console.error('[POST /api/email-config] ✗ CRITICAL: User ID not found!');
         console.error('[POST /api/email-config] Full req.user object:', JSON.stringify(req.user, null, 2));
         return res.status(401).json({
           message: "Authentication error: User ID not found in session. Please logout and login again.",
-          debug: { hasUser: !!req.user, userId: req.user?.id }
+          debug: {
+            hasUser: !!req.user,
+            hasId: !!req.user?.id,
+            hasClaimsSub: !!req.user?.claims?.sub
+          }
         });
       }
 
@@ -179,8 +188,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         });
       }
 
-      console.log('[POST /api/email-config] ✓ Validation passed, calling storage.updateEmailConfig...');
-      const config = await storage.updateEmailConfig(req.user.id, req.body);
+      console.log('[POST /api/email-config] ✓ Validation passed, calling storage.updateEmailConfig with userId:', userId);
+      const config = await storage.updateEmailConfig(userId, req.body);
       console.log('[POST /api/email-config] ✓ Config saved successfully to database!');
       console.log('[POST /api/email-config] Saved config ID:', config.id);
       console.log('[POST /api/email-config] ═══════════════════════════════════');
