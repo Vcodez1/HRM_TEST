@@ -3,6 +3,7 @@ import { useRoute, useLocation } from "wouter";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import Sidebar from "@/components/Sidebar";
+import * as XLSX from "xlsx";
 import {
     Table,
     TableBody,
@@ -26,7 +27,9 @@ import {
     Loader2,
     AlertCircle,
     CheckCircle2,
-    RotateCcw
+    RotateCcw,
+    FileSpreadsheet,
+    Download
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
@@ -74,6 +77,12 @@ export default function ClassMarksPage() {
         enabled: !!classId,
     });
 
+    // Fetch attendance data for export
+    const { data: attendanceData } = useQuery<any[]>({
+        queryKey: [`/api/classes/${classId}/attendance`],
+        enabled: !!classId,
+    });
+
     // Initialize local marks from existing data
     useEffect(() => {
         if (students) {
@@ -105,6 +114,92 @@ export default function ClassMarksPage() {
             (mark.task || 0) +
             (mark.project || 0) +
             (mark.finalValidation || 0);
+    };
+
+    // Export to Excel
+    const exportToExcel = () => {
+        if (!students || students.length === 0) {
+            toast({ title: "No Data", description: "No students to export", variant: "destructive" });
+            return;
+        }
+
+        // Calculate attendance stats for each student
+        const getAttendanceStats = (leadId: number) => {
+            const studentAttendance = attendanceData?.filter(a => a.leadId === leadId) || [];
+            const present = studentAttendance.filter(a => a.status === 'Present').length;
+            const absent = studentAttendance.filter(a => a.status === 'Absent').length;
+            const late = studentAttendance.filter(a => a.status === 'Late').length;
+            const total = studentAttendance.length;
+            const percentage = total > 0 ? Math.round((present / total) * 100) : 0;
+            return { present, absent, late, percentage };
+        };
+
+        // Build export data
+        const exportData = students.map((student, index) => {
+            const mark = localMarks[student.id] || {
+                assessment1: 0,
+                assessment2: 0,
+                task: 0,
+                project: 0,
+                finalValidation: 0,
+                total: 0,
+            };
+            const attendance = getAttendanceStats(student.id);
+            const today = new Date().toLocaleDateString('en-US', {
+                month: '2-digit',
+                day: '2-digit',
+                year: 'numeric'
+            });
+
+            return {
+                "S.No": index + 1,
+                "Student ID": student.studentId || "PENDING",
+                "Student Name": student.name,
+                "Email": student.email || "",
+                "Date": today,
+                "Total Present": attendance.present,
+                "Total Absent": attendance.absent,
+                "Total Late": attendance.late,
+                "Attendance %": attendance.percentage,
+                "Assessment 1": mark.assessment1 || 0,
+                "Assessment 2": mark.assessment2 || 0,
+                "Task": mark.task || 0,
+                "Project": mark.project || 0,
+                "Final Validation": mark.finalValidation || 0,
+                "Total Marks": mark.total || 0,
+            };
+        });
+
+        // Create workbook and worksheet
+        const ws = XLSX.utils.json_to_sheet(exportData);
+        const wb = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(wb, ws, "Student Marks");
+
+        // Auto-size columns
+        const colWidths = [
+            { wch: 6 },   // S.No
+            { wch: 12 },  // Student ID
+            { wch: 25 },  // Student Name
+            { wch: 30 },  // Email
+            { wch: 12 },  // Date
+            { wch: 12 },  // Total Present
+            { wch: 12 },  // Total Absent
+            { wch: 10 },  // Total Late
+            { wch: 12 },  // Attendance %
+            { wch: 14 },  // Assessment 1
+            { wch: 14 },  // Assessment 2
+            { wch: 8 },   // Task
+            { wch: 10 },  // Project
+            { wch: 16 },  // Final Validation
+            { wch: 12 },  // Total Marks
+        ];
+        ws['!cols'] = colWidths;
+
+        // Export file
+        const fileName = `${cls?.name || 'Class'}_Marks_${new Date().toISOString().split('T')[0]}.xlsx`;
+        XLSX.writeFile(wb, fileName);
+
+        toast({ title: "Exported!", description: `Data exported to ${fileName}` });
     };
 
     // Update a single field
@@ -263,14 +358,23 @@ export default function ClassMarksPage() {
                             </p>
                         </div>
 
-                        <Button
-                            variant="outline"
-                            className="border-slate-200 text-slate-600 hover:bg-slate-50 gap-2 h-10 px-5 rounded-lg bg-white"
-                            onClick={() => setLocation(`/classes/${classId}/students`)}
-                        >
-                            <ArrowLeft className="h-4 w-4" />
-                            Back to Students
-                        </Button>
+                        <div className="flex items-center gap-3">
+                            <Button
+                                className="bg-emerald-600 hover:bg-emerald-700 text-white gap-2 h-10 px-5 rounded-lg shadow-sm"
+                                onClick={exportToExcel}
+                            >
+                                <FileSpreadsheet className="h-4 w-4" />
+                                Export Excel
+                            </Button>
+                            <Button
+                                variant="outline"
+                                className="border-slate-200 text-slate-600 hover:bg-slate-50 gap-2 h-10 px-5 rounded-lg bg-white"
+                                onClick={() => setLocation(`/classes/${classId}/students`)}
+                            >
+                                <ArrowLeft className="h-4 w-4" />
+                                Back to Students
+                            </Button>
+                        </div>
                     </div>
 
                     {/* Table Card */}
