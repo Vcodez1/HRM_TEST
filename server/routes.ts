@@ -233,7 +233,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       });
 
       // Try to get config from request, database, or environment variables (fallback for Render)
-      let smtpConfig = config || await storage.getEmailConfig(req.user.id);
+      const userId = req.user?.claims?.sub || req.user?.id;
+      let smtpConfig = config || await storage.getEmailConfig(userId);
 
       console.log('[POST /api/email-config/test] Database config check:', {
         hasConfig: !!smtpConfig,
@@ -341,7 +342,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       // Try database config first, fallback to environment variables
-      let smtpConfig = await storage.getEmailConfig(req.user.id);
+      const userId = req.user?.claims?.sub || req.user?.id;
+      let smtpConfig = await storage.getEmailConfig(userId);
 
       if (!smtpConfig || !smtpConfig.smtpEmail || !smtpConfig.appPassword || !smtpConfig.isEnabled) {
         console.log('[POST /api/tech-support/notify-students] Database config incomplete, checking environment variables...');
