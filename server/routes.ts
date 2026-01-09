@@ -4629,57 +4629,8 @@ Please do not reply to this email unless providing absence justification.`;
     }
   });
 
-  // Get marks for a class
-  app.get('/api/classes/:id/marks', isAuthenticated, async (req: any, res) => {
-    try {
-      const classId = parseInt(req.params.id);
-      const marksData = await storage.getMarks(classId);
-      res.json(marksData);
-    } catch (error: any) {
-      res.status(500).json({ message: 'Failed to fetch marks', error: error.message });
-    }
-  });
-
-  // Add/Update mark
-  app.post('/api/classes/:id/marks', isAuthenticated, async (req: any, res) => {
-    try {
-      const classId = parseInt(req.params.id);
-      const markData = insertMarksSchema.parse({
-        ...req.body,
-        classId
-      });
-      const result = await storage.addMark(markData);
-      res.json(result);
-    } catch (error: any) {
-      res.status(400).json({ message: 'Invalid mark data', error: error.message });
-    }
-  });
-
-  // Save all marks for a class (bulk save)
-  app.post('/api/classes/:id/marks/bulk', isAuthenticated, async (req: any, res) => {
-    try {
-      const classId = parseInt(req.params.id);
-      const { marks: marksDataArray } = req.body;
-
-      if (!Array.isArray(marksDataArray)) {
-        return res.status(400).json({ message: 'Marks must be an array' });
-      }
-
-      const results = [];
-      for (const markData of marksDataArray) {
-        const parsedMark = insertMarksSchema.parse({
-          ...markData,
-          classId
-        });
-        const result = await storage.addMark(parsedMark);
-        results.push(result);
-      }
-
-      res.json({ message: 'All marks saved successfully', count: results.length });
-    } catch (error: any) {
-      res.status(400).json({ message: 'Failed to save marks', error: error.message });
-    }
-  });
+  // NOTE: Marks routes are defined earlier in the file (around line 4357-4420)
+  // Do not add duplicate routes here
 
   // Update specific student ID
   app.patch('/api/classes/:id/students/:leadId/student-id', isAuthenticated, async (req: any, res) => {
